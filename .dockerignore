@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.github
+.env
+.env.local
+.env.*.local
+*.log
+public/*.zip
+__tests__
+tests
+.claude
