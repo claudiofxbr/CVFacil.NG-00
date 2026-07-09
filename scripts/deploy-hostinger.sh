@@ -45,7 +45,9 @@ ssh "$VPS_USER@$VPS_HOST" bash << 'REMOTE'
   # por padrão, não .env.local (diferente do Next.js) — exporta explicitamente.
   export DATABASE_URL="$(grep '^DATABASE_URL=' .env.local | cut -d= -f2-)"
   export DIRECT_URL="$(grep '^DIRECT_URL=' .env.local | cut -d= -f2-)"
-  npx prisma migrate deploy
+  # Versão fixa (mesma do package.json): sem isso, "npx prisma" baixa a última
+  # versão publicada, que pode ter mudado a sintaxe do schema.prisma.
+  npx prisma@5.21.0 migrate deploy
 
   # Reinicia o app (ou inicia pela primeira vez)
   pm2 describe cvfacil-ng > /dev/null 2>&1 \

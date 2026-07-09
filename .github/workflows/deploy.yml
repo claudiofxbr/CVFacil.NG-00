@@ -60,7 +60,10 @@ jobs:
             # exporta explicitamente as duas variáveis que a migration precisa.
             export DATABASE_URL="$(grep '^DATABASE_URL=' .env.local | cut -d= -f2-)"
             export DIRECT_URL="$(grep '^DIRECT_URL=' .env.local | cut -d= -f2-)"
-            npx prisma migrate deploy
+            # Versão fixa em 5.21.0 (mesma do package.json): sem isso, "npx prisma"
+            # baixa a última versão publicada (7.x), que mudou a sintaxe do
+            # datasource no schema.prisma e quebra a migration.
+            npx prisma@5.21.0 migrate deploy
 
             pm2 describe cvfacil-ng > /dev/null 2>&1 \
               && pm2 reload ecosystem.config.cjs \
