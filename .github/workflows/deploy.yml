@@ -18,7 +18,9 @@ jobs:
           node-version: '20'
 
       - name: Instalar dependências
-        run: npm ci
+        # eslint-config-next exige eslint >=9, mas o projeto fixa eslint ^8 — mesmo
+        # conflito de peer dependency já contornado localmente nesta sessão.
+        run: npm ci --legacy-peer-deps
 
       - name: Build de produção
         run: npm run build
