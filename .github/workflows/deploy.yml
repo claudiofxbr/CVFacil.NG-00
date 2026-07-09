@@ -29,10 +29,10 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ghcr.io/claudiofxbr/cvfacil.ng:latest
+            ghcr.io/claudiofxbr/cvfacil.ng:${{ github.sha }}
 
-# Após o push, a imagem fica em ghcr.io/claudiofxbr/cvfacil.ng-00:latest.
+# Após o push, a imagem fica em ghcr.io/claudiofxbr/cvfacil.ng:latest.
 # No EasyPanel (mesmo painel já usado para portalcursos e prd-gra.ng nesta VPS),
 # crie um novo App apontando para essa imagem, configure o domínio cvfacil.ng
 # e as variáveis de ambiente de produção (mesmas do .env.local documentado
