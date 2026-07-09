@@ -1,0 +1,279 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ========== USERS ==========
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  name      String?
+  password  String?
+  role      String    @default("Cliente") // 'Cliente' | 'Administrador'
+  plan      String    @default("Free")    // 'Free' | 'Básico' | 'Padrão' | 'Premium'
+  status    String    @default("Ativo")   // 'Ativo' | 'Inativo'
+  credits   Int       @default(0)
+  avatar    String?
+  lastLogin DateTime?
+  createdAt DateTime  @default(now())
+
+  // Relations
+  importJobs    ImportJob[]
+  quotaLogs     ApiQuotaLog[]
+  resumes       Resume[]
+  notifications Notification[]
+  payments      Payment[]
+
+  @@map("users")
+}
+
+// ========== RESUMES ==========
+model Resume {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Content
+  templateId    String   @default("original")
+  themeMode     String   @default("light")
+  fullName      String?
+  role          String?
+  email         String?
+  phone         String?
+  linkedin      String?
+  portfolio     String?
+  summary       String?
+
+  // JSON fields
+  experiences   Json?    @default("[]")
+  education     Json?    @default("[]")
+  skills        Json?    @default("[]")
+  languages     Json?    @default("[]")
+  hobbies       Json?    @default("[]")
+
+  // Media
+  avatarUrl     String?
+
+  // Sharing / i18n
+  sharedToken   String?  @unique
+  language      String?  @default("pt-BR")
+
+  // Flags
+  isPinned      Boolean  @default(false)
+  isImported    Boolean  @default(false)
+
+  // Consumo de créditos: a cada 2 alterações manuais (clique em "Salvar"),
+  // 1 crédito é descontado do usuário e o contador volta a 0.
+  editCount     Int      @default(0)
+
+  // Timestamps
+  createdAt     DateTime @default(now())
+  lastUpdated   DateTime @default(now()) @updatedAt
+
+  @@map("resumes")
+}
+
+// ========== JOB QUEUE ==========
+model ImportJob {
+  id                  String    @id @default(cuid())
+  userId              String
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // File info
+  fileName            String
+  filePath            String?
+  fileSizeBytes       BigInt?
+
+  // Status tracking
+  status              JobStatus @default(PENDING) // PENDING, PROCESSING, SUCCESS, FAILED
+  attemptCount        Int       @default(0)
+  maxRetries          Int       @default(5)
+  lastError           String?
+  lastErrorCode       String?
+
+  // Processing data
+  extractedTextLength Int?
+  estimatedTokens     Int?
+  actualTokensUsed    Int?
+  chunksCount         Int?
+
+  // Timestamps
+  createdAt           DateTime  @default(now())
+  startedAt           DateTime?
+  completedAt         DateTime?
+
+  // Results
+  suggestions         Json?     // JSON array of suggestions
+  resultMetadata      Json?     // Additional processing data
+
+  // Relations
+  retryHistory        JobRetryHistory[]
+  quotaLogs           ApiQuotaLog[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("import_jobs")
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+}
+
+// ========== QUOTA TRACKING ==========
+model ApiQuotaLog {
+  id                    BigInt    @id @default(autoincrement())
+  timestamp             DateTime  @default(now())
+
+  // Event type
+  eventType             String    // 'REQUEST', 'QUOTA_RESET', 'ALERT', 'ERROR'
+
+  // Metrics snapshot
+  requestsThisMinute    Int?
+  requestsThisDay       Int?
+  tokensThisMinute      BigInt?
+  tokensThisDay         BigInt?
+
+  // Request details
+  jobId                 String?
+  job                   ImportJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  tokensConsumed        Int?
+
+  // Status
+  success               Boolean?
+  errorCode             String?
+
+  userId                String?
+  user                  User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([timestamp(sort: Desc)])
+  @@index([jobId, timestamp(sort: Desc)])
+  @@index([userId, timestamp(sort: Desc)])
+  @@map("api_quota_logs")
+}
+
+// ========== QUOTA STATE ==========
+model QuotaState {
+  id                        Int       @id @default(1) // Single row table
+
+  requestsThisMinute        Int       @default(0)
+  requestsThisDay           Int       @default(0)
+  tokensThisMinute          BigInt    @default(0)
+  tokensThisDay             BigInt    @default(0)
+
+  minuteResetAt             DateTime  @default(now())
+  dayResetAt                DateTime  @default(now())
+
+  alertSent80Percent        Boolean   @default(false)
+  alertSent100Percent       Boolean   @default(false)
+
+  lastUpdated               DateTime  @default(now()) @updatedAt
+
+  @@map("quota_state")
+}
+
+// ========== RETRY HISTORY ==========
+model JobRetryHistory {
+  id                BigInt    @id @default(autoincrement())
+  jobId             String
+  job               ImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  attemptNumber     Int
+  retryType         String    // 'EXPONENTIAL', 'QUOTA_WAIT', 'MANUAL'
+  scheduledFor      DateTime?
+  executedAt        DateTime?
+
+  errorCode         String?
+  backoffMs         Int?      // Milliseconds waited
+
+  createdAt         DateTime  @default(now())
+
+  @@index([jobId, attemptNumber])
+  @@map("job_retry_history")
+}
+
+// ========== AUDITORIA DE PAPEL DE ADMIN ==========
+model AdminAuditLog {
+  id            String   @id @default(cuid())
+  actorId       String   // quem fez a alteração
+  actorEmail    String   // snapshot do e-mail no momento (sobrevive se a conta for excluída depois)
+  targetId      String   // usuário afetado
+  targetEmail   String
+  previousRole  String
+  newRole       String
+  createdAt     DateTime @default(now())
+
+  @@index([targetId, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("admin_audit_logs")
+}
+
+// ========== NOTIFICAÇÕES ==========
+// Estrutura genérica: "type" é string livre (sem enum no banco) para permitir
+// novos tipos de evento no futuro sem exigir migration. "data" carrega o
+// payload estruturado específico de cada tipo (ex.: { amount } em credit_grant).
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type      String
+  message   String
+  data      Json?
+  read      Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, read, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+// ========== PAGAMENTOS (extrato / contas a receber) ==========
+model Payment {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  plan      String
+  amount    Int      // centavos
+  currency  String   @default("brl")
+  method    String?  // 'card' | 'pix' | outro — resolvido a partir do PaymentIntent no webhook
+  status    String   // 'paid' | 'pending' | 'failed'
+
+  stripeSessionId       String  @unique
+  stripePaymentIntentId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("payments")
+}
+
+// ========== WORKER HEALTH ==========
+model WorkerHealth {
+  id                    Int       @id @default(autoincrement())
+  workerId              String    @unique
+
+  isActive              Boolean   @default(true)
+  lastHeartbeat         DateTime  @default(now())
+
+  jobsProcessed         Int       @default(0)
+  jobsFailed            Int       @default(0)
+  avgProcessingTimeMs   Int?
+
+  updatedAt             DateTime  @default(now()) @updatedAt
+
+  @@index([isActive, lastHeartbeat])
+  @@map("worker_health")
+}

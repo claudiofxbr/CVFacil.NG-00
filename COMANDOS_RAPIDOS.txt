@@ -1,0 +1,165 @@
+================================================================================
+                    🚀 CVFACIL.NG - COMANDOS RÁPIDOS 🚀
+================================================================================
+
+⏱️  LEVA APENAS 5 MINUTOS!
+
+================================================================================
+PASSO 1: ABRIR 3 TERMINAIS (Importante!)
+================================================================================
+
+Você vai abrir:
+  1️⃣  Terminal para REDIS
+  2️⃣  Terminal para SERVIDOR
+  3️⃣  Terminal para WORKER
+
+Todos rodando SIMULTANEAMENTE.
+
+================================================================================
+TERMINAL 1️⃣  - REDIS (Escolha UMA opção)
+================================================================================
+
+OPÇÃO A: WSL (Recomendado)
+─────────────────────────────
+Abra PowerShell como ADMINISTRADOR e digite:
+
+  wsl
+
+Vai abrir uma segunda janela. Aí digite:
+
+  sudo service redis-server start
+
+Depois verifique:
+
+  redis-cli ping
+
+Esperado: PONG ✅
+
+
+OPÇÃO B: Docker
+─────────────────────────────
+  docker run -d -p 6379:6379 redis:alpine
+
+
+OPÇÃO C: Chocolatey (Windows)
+─────────────────────────────
+  choco install redis-64 -y
+  redis-server
+
+================================================================================
+TERMINAL 2️⃣  - SERVIDOR NEXT.JS
+================================================================================
+
+Cole EXATAMENTE isto:
+
+  cd C:\Users\VeKTI-01\Downloads\cvfacil-ng-dev
+  npm run dev
+
+Esperado (após 5-10 segundos):
+─────────────────────────────────
+  ▲ Next.js 16.1.6 (Turbopack)
+  - Local:        http://localhost:3000
+  - Network:      http://192.168.3.12:3000
+
+  ✓ Ready in 2.1s
+
+Abra no navegador: http://localhost:3000
+
+================================================================================
+TERMINAL 3️⃣  - WORKER DE PROCESSAMENTO
+================================================================================
+
+Cole EXATAMENTE isto:
+
+  cd C:\Users\VeKTI-01\Downloads\cvfacil-ng-dev
+  npm run worker
+
+Esperado (após 2-3 segundos):
+─────────────────────────────────
+  🚀 Iniciando PDF Processing Worker...
+  ✅ Worker pronto para processar jobs
+
+================================================================================
+✅ TUDO FUNCIONANDO? TESTE ISTO:
+================================================================================
+
+Terminal 4️⃣ (Ou PowerShell novo):
+
+  curl http://localhost:3000/api/quota-status
+
+Esperado: JSON com status "ok" ✅
+
+================================================================================
+🧪 TESTAR COM PDF (Opcional)
+================================================================================
+
+Terminal 4️⃣:
+
+  curl -X POST http://localhost:3000/api/import-resume-v2 \
+    -F "file=@seu_curriculo.pdf" \
+    -F "userId=user_teste" | jq
+
+Esperado:
+─────────
+  {
+    "success": true,
+    "message": "Currículo enfileirado para processamento",
+    "data": {
+      "jobId": "abc123...",
+      "fileName": "seu_curriculo.pdf",
+      "statusUrl": "/api/import-resume-v2/status?jobId=abc123..."
+    }
+  }
+
+Copie o jobId e execute:
+
+  curl "http://localhost:3000/api/import-resume-v2/status?jobId=abc123..." | jq
+
+Aguarde até ver:
+
+  "status": "success"
+
+================================================================================
+📊 DASHBOARD EM TEMPO REAL (Opcional)
+================================================================================
+
+Terminal 4️⃣:
+
+  npx prisma studio
+
+Abre página web mostrando todos os jobs em tempo real!
+
+================================================================================
+🛑 PARAR TUDO
+================================================================================
+
+Em cada terminal, pressione: Ctrl+C
+
+Terminal 1: Ctrl+C (Redis)
+Terminal 2: Ctrl+C (Servidor)
+Terminal 3: Ctrl+C (Worker)
+
+================================================================================
+❓ DÚVIDAS?
+================================================================================
+
+Leia:
+  - COMO_INICIAR.md                  (Este documento em detalhes)
+  - IMPLEMENTACAO_COMPLETA.md        (Guia completo)
+  - REDIS_SETUP.md                   (Problemas com Redis)
+  - CONCLUSAO_IMPLEMENTACAO.md       (Resumo final)
+
+================================================================================
+✨ RESUMO
+================================================================================
+
+3 Terminais rodando:
+  ✅ Redis
+  ✅ Servidor (http://localhost:3000)
+  ✅ Worker
+
+Aplicação pronta para usar!
+
+Parabéns! 🎉
+
+================================================================================

@@ -1,0 +1,96 @@
+╔═════════════════════════════════════════════════════════════════════════════╗
+║                   LEIA PRIMEIRO! 📖                                         ║
+║          Como Executar CVFacil.NG - Guia Super Rápido                      ║
+╚═════════════════════════════════════════════════════════════════════════════╝
+
+OPÇÃO 1: MAIS FÁCIL (Windows)
+═════════════════════════════════════════════════════════════════════════════
+
+1. Procure na pasta: start.bat
+2. Double-click (duplo clique) em start.bat
+3. Espere abrir o navegador em http://localhost:3000
+4. Pronto! 🎉
+
+
+OPÇÃO 2: MAIS CONTROLE (Qualquer SO)
+═════════════════════════════════════════════════════════════════════════════
+
+1. Abra terminal/PowerShell nesta pasta
+2. Digite: npm install (espere terminar)
+3. Digite: npm run dev
+4. Abra navegador em: http://localhost:3000
+5. Pronto! 🎉
+
+
+OPÇÃO 3: NO VS CODE
+═════════════════════════════════════════════════════════════════════════════
+
+1. Abra esta pasta no VS Code
+2. Terminal > New Terminal
+3. npm install
+4. npm run dev
+5. Ctrl+Click no link ou digite: http://localhost:3000
+
+
+⚠️  ANTES DE COMEÇAR - VERIFICAR
+═════════════════════════════════════════════════════════════════════════════
+
+☐ Node.js instalado (v20+)? → https://nodejs.org/
+☐ Arquivo .env.local existe? → Já está configurado
+☐ Banco Neon ativo? → https://console.neon.tech
+
+
+❌ DEU ERRO?
+═════════════════════════════════════════════════════════════════════════════
+
+"npm: command not found"
+→ Instalar Node.js em https://nodejs.org/
+
+"Port 3000 already in use"
+→ npm run dev -- -p 3001
+
+"Cannot find module"
+→ npm install (novamente)
+
+Para mais detalhes:
+→ Abra o arquivo: RUN_APP.md
+
+
+✅ TUDO FUNCIONANDO?
+═════════════════════════════════════════════════════════════════════════════
+
+1. Você vê http://localhost:3000 no navegador
+2. Tela de login aparece
+3. Cria conta e entra
+4. Dashboard carrega com currículos
+5. Clica "Novo Currículo"
+6. Escolhe um template e edita
+
+👍 Pronto! CVFacil.NG está funcionando!
+
+
+📚 PRÓXIMOS PASSOS
+═════════════════════════════════════════════════════════════════════════════
+
+Leia estes arquivos (em ordem):
+
+1. START.md
+   → Como executar (várias formas)
+
+2. QUICK_START.md
+   → Novas features (IA, Idiomas, Templates)
+
+3. RUN_APP.md
+   → Guia completo com todos os detalhes
+
+
+🚀 ESTÁ TUDO PRONTO!
+═════════════════════════════════════════════════════════════════════════════
+
+CVFacil.NG foi completamente desenvolvido e testado.
+Basta executar e começar a usar!
+
+Desenvolvido com ❤️ por Claude Code
+Data: 2026-05-05
+
+═════════════════════════════════════════════════════════════════════════════

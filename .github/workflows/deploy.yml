@@ -1,0 +1,71 @@
+name: Deploy CVFacil.NG para a VPS Hostinger
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Build de produção
+        run: npm run build
+
+      - name: Montar pacote de deploy
+        run: |
+          cp -r public .next/standalone/public
+          cp -r .next/static .next/standalone/.next/static
+          # Inclui prisma/ (schema + migrations): "npx prisma migrate deploy" na VPS
+          # precisa do schema.prisma no diretório, que não vem no build standalone.
+          tar -czf deploy.tar.gz .next/standalone ecosystem.config.cjs .env.example prisma
+
+      - name: Configurar chave SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Enviar pacote para a VPS
+        run: |
+          scp -i ~/.ssh/deploy_key deploy.tar.gz \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/cvfacil-deploy.tar.gz"
+
+      - name: Instalar na VPS e reiniciar
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" bash << 'REMOTE'
+            set -e
+            mkdir -p /var/www/cvfacil.ng/logs
+            cd /var/www/cvfacil.ng
+            tar -xzf /tmp/cvfacil-deploy.tar.gz -C .
+            rm /tmp/cvfacil-deploy.tar.gz
+
+            command -v pm2 >/dev/null 2>&1 || npm install -g pm2
+
+            # O Prisma CLI lê .env por padrão, não .env.local (diferente do Next.js) —
+            # exporta explicitamente as duas variáveis que a migration precisa.
+            export DATABASE_URL="$(grep '^DATABASE_URL=' .env.local | cut -d= -f2-)"
+            export DIRECT_URL="$(grep '^DIRECT_URL=' .env.local | cut -d= -f2-)"
+            npx prisma migrate deploy
+
+            pm2 describe cvfacil-ng > /dev/null 2>&1 \
+              && pm2 reload ecosystem.config.cjs \
+              || pm2 start ecosystem.config.cjs
+            pm2 save
+          REMOTE
+
+      - name: Limpar chave SSH temporária
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

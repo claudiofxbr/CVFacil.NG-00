@@ -1,0 +1,23 @@
+version: '3.8'
+
+# Postgres local removido: o banco de dados de produção e desenvolvimento é o Neon
+# (variável DATABASE_URL / DIRECT_URL em .env.local). Este compose serve só para
+# subir dependências locais que não têm equivalente em nuvem — hoje, o Redis do BullMQ.
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: cvfacil-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+
+volumes:
+  redis-data:
