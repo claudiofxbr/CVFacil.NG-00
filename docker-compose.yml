@@ -5,6 +5,22 @@ version: '3.8'
 # subir dependências locais que não têm equivalente em nuvem — hoje, o Redis do BullMQ.
 
 services:
+  app:
+    build: .
+    container_name: cvfacil-app
+    ports:
+      - "3001:3000"
+    env_file:
+      - .env.local
+    environment:
+      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+      # Sobrescreve os valores de dev do .env.local (localhost:6300): dentro da
+      # rede do compose, o Redis é acessível pelo nome do serviço, porta padrão.
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+
   redis:
     image: redis:7-alpine
     container_name: cvfacil-redis

@@ -21,6 +21,11 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
+# node:20-slim não inclui OpenSSL — o engine do Prisma Client precisa dele em
+# runtime (sem isso: "Prisma cannot find the required libssl system library").
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
