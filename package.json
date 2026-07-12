@@ -38,7 +38,7 @@
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.577.0",
     "next": "latest",
-    "nodemailer": "^8.0.7",
+    "nodemailer": "^9.0.1",
     "pdfjs-dist": "^5.5.207",
     "pino": "^10.3.1",
     "pino-pretty": "^13.1.3",
