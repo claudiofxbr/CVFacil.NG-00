@@ -49,7 +49,16 @@ param(
     [int]$TimeoutServicoMin = 5
 )
 
-$ErrorActionPreference = "Stop"
+# Nao usamos $ErrorActionPreference = "Stop": toda a checagem de erro deste
+# script e manual (via $LASTEXITCODE + Parar), e comandos nativos (git, ssh,
+# docker) escrevem mensagens rotineiras no stderr mesmo em sucesso (ex.: "git
+# push" -> "Everything up-to-date"). Com ErrorActionPreference=Stop, o
+# PowerShell pode converter essas linhas de stderr em excecao terminante via
+# "2>&1", mesmo com exit code 0 e "| Out-Null" depois. Desligamos tambem a
+# conversao equivalente do PowerShell 7+ como reforco.
+if (Test-Path variable:PSNativeCommandUseErrorActionPreference) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
 $log = New-Object System.Collections.Generic.List[object]
 
 function Registrar([string]$etapa, [string]$status, [string]$detalhe = "") {
