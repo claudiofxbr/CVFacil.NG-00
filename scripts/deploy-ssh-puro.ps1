@@ -148,16 +148,22 @@ if (0 -ne (Ssh-Vps-Stdin $conteudoEnv "cat > $DiretorioRemoto/.env")) { Parar "f
 Ssh-Vps "chmod 600 $DiretorioRemoto/.env" | Out-Null
 Registrar "Variaveis de ambiente enviadas (via SSH)" "OK" "$($envFinal.Count) variaveis em $DiretorioRemoto/.env"
 
-# ── 5. Autenticar no GHCR e puxar a imagem ──────────────────────────────────
-if (-not $RegistryUsuario -or -not $RegistryToken) {
-    Parar "informe -RegistryUsuario e -RegistryToken (ou `$env:GHCR_TOKEN) — obrigatorio: a imagem $Imagem e privada."
+# ── 5. Autenticar no GHCR (so se um token foi informado) e puxar a imagem ───
+# Login e opcional: se o pacote no GHCR for publico, "docker pull" funciona
+# sem autenticacao nenhuma. So tentamos logar se -RegistryToken foi passado.
+if ($RegistryUsuario -and $RegistryToken) {
+    $login = Ssh-Vps "echo '$RegistryToken' | docker login ghcr.io -u $RegistryUsuario --password-stdin"
+    if ($login.Codigo -ne 0) { Parar "login no GHCR falhou: $($login.Texto)" }
+    Registrar "Login no GHCR (VPS)" "OK"
 }
-$login = Ssh-Vps "echo '$RegistryToken' | docker login ghcr.io -u $RegistryUsuario --password-stdin"
-if ($login.Codigo -ne 0) { Parar "login no GHCR falhou: $($login.Texto)" }
-Registrar "Login no GHCR (VPS)" "OK"
+else {
+    Registrar "Login no GHCR (VPS)" "AVISO" "pulado (sem token) — assume que o pacote e publico"
+}
 
 $pull = Ssh-Vps "docker pull $Imagem"
-if ($pull.Codigo -ne 0) { Parar "docker pull falhou: $($pull.Texto)" }
+if ($pull.Codigo -ne 0) {
+    Parar "docker pull falhou: $($pull.Texto) — se o pacote ainda estiver privado, informe -RegistryUsuario e -RegistryToken."
+}
 Registrar "Imagem baixada na VPS" "OK" "$Imagem"
 
 # ── 6. Rodar migrations (Prisma) contra o Neon, a partir da propria imagem ──
