@@ -157,7 +157,12 @@ if ($RegistryUsuario -and $RegistryToken) {
     Registrar "Login no GHCR (VPS)" "OK"
 }
 else {
-    Registrar "Login no GHCR (VPS)" "AVISO" "pulado (sem token) — assume que o pacote e publico"
+    # Limpa qualquer credencial em cache de tentativas anteriores: se um login
+    # antigo (ex.: com token invalido) ficou salvo em ~/.docker/config.json na
+    # VPS, o Docker usa essa credencial automaticamente em vez de tentar pull
+    # anonimo — mesmo que o pacote seja publico, resultando em "denied".
+    Ssh-Vps "docker logout ghcr.io" | Out-Null
+    Registrar "Login no GHCR (VPS)" "AVISO" "pulado (sem token) — credenciais antigas limpas, assume que o pacote e publico"
 }
 
 $pull = Ssh-Vps "docker pull $Imagem"
