@@ -191,16 +191,19 @@ if ($migrar.Codigo -ne 0) { Parar "migrations falharam apos $tentativasMigracao 
 Registrar "Migrations aplicadas no Neon" "OK"
 
 # ── 7. Substituir o container (parar/remover o antigo, subir o novo) ───────
-# Confere se a porta ja esta em uso por outra coisa (ex.: o proprio EasyPanel
-# ocupa a 3000 nesta VPS) ANTES de tentar subir, e falha com mensagem clara
-# em vez do erro generico do Docker ("port is already allocated").
+# IMPORTANTE: remover o container antigo ANTES de checar a porta. Em todo
+# redeploy, o proprio "$NomeContainer" da rodada anterior ja ocupa a porta —
+# isso e esperado e nao e um conflito real. So depois de remove-lo faz
+# sentido checar se sobrou algo (outro processo/container) ainda usando a
+# porta, o que ai sim seria um conflito genuino (ex.: o EasyPanel na 3000).
+Ssh-Vps "docker rm -f $NomeContainer" | Out-Null   # ignora erro se nao existir ainda
+
 $portaEmUso = Ssh-Vps "ss -tln | grep -q ':$Porta ' && echo OCUPADA || echo LIVRE"
 if ($portaEmUso.Texto.Trim() -eq "OCUPADA") {
     $ocupante = Ssh-Vps "docker ps --format '{{.Names}}: {{.Ports}}' | grep ':$Porta->' "
     Parar "porta $Porta ja esta em uso na VPS por outro processo/container ($($ocupante.Texto.Trim())). Use -Porta para escolher outra."
 }
 
-Ssh-Vps "docker rm -f $NomeContainer" | Out-Null   # ignora erro se nao existir ainda
 $run = Ssh-Vps "docker run -d --name $NomeContainer --restart unless-stopped -p ${Porta}:3000 --env-file $DiretorioRemoto/.env $Imagem"
 if ($run.Codigo -ne 0) { Parar "falha ao iniciar o container: $($run.Texto)" }
 Registrar "Container iniciado" "OK" "porta $Porta -> 3000"
