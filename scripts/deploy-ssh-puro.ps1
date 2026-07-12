@@ -63,9 +63,12 @@ function Ssh-Vps([string]$comando) {
     [pscustomobject]@{ Texto = ($saida -join "`n"); Codigo = $LASTEXITCODE }
 }
 function Ssh-Vps-Stdin([string]$conteudo, [string]$comando) {
-    $conteudo | & ssh -i $VpsChave -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=accept-new `
-        "$VpsUser@$VpsHost" $comando 2>&1 | Out-Null
-    return $LASTEXITCODE
+    # Envia $conteudo pelo stdin REAL da conexao SSH (nunca embutido como texto
+    # dentro do comando remoto) — importante para segredos como o token do
+    # GHCR: evita que o valor apareca em texto puro na string do comando.
+    $saida = $conteudo | & ssh -i $VpsChave -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=accept-new `
+        "$VpsUser@$VpsHost" $comando 2>&1
+    [pscustomobject]@{ Texto = ($saida -join "`n"); Codigo = $LASTEXITCODE }
 }
 
 Write-Host "CVFacil.NG — deploy via SSH puro (sem EasyPanel)" -ForegroundColor White
@@ -145,16 +148,20 @@ $envFinal += "PORT=3000"
 $envFinal += "HOSTNAME=0.0.0.0"
 $conteudoEnv = ($envFinal -join "`n")
 
-if (0 -ne (Ssh-Vps-Stdin "" "mkdir -p $DiretorioRemoto")) { Parar "nao foi possivel criar '$DiretorioRemoto' na VPS." }
-if (0 -ne (Ssh-Vps-Stdin $conteudoEnv "cat > $DiretorioRemoto/.env")) { Parar "falha ao enviar o arquivo de ambiente para a VPS." }
+if (0 -ne (Ssh-Vps-Stdin "" "mkdir -p $DiretorioRemoto").Codigo) { Parar "nao foi possivel criar '$DiretorioRemoto' na VPS." }
+if (0 -ne (Ssh-Vps-Stdin $conteudoEnv "cat > $DiretorioRemoto/.env").Codigo) { Parar "falha ao enviar o arquivo de ambiente para a VPS." }
 Ssh-Vps "chmod 600 $DiretorioRemoto/.env" | Out-Null
 Registrar "Variaveis de ambiente enviadas (via SSH)" "OK" "$($envFinal.Count) variaveis em $DiretorioRemoto/.env"
 
 # ── 5. Autenticar no GHCR (so se um token foi informado) e puxar a imagem ───
 # Login e opcional: se o pacote no GHCR for publico, "docker pull" funciona
 # sem autenticacao nenhuma. So tentamos logar se -RegistryToken foi passado.
+# O token vai pelo stdin real do SSH (Ssh-Vps-Stdin), nunca embutido como
+# texto dentro da string do comando remoto -- evita expor o segredo em
+# listagens de processo e reduz o risco de ferramentas de seguranca locais
+# sinalizarem o arquivo do script por conter um padrao "echo '<segredo>' |".
 if ($RegistryUsuario -and $RegistryToken) {
-    $login = Ssh-Vps "echo '$RegistryToken' | docker login ghcr.io -u $RegistryUsuario --password-stdin"
+    $login = Ssh-Vps-Stdin $RegistryToken "docker login ghcr.io -u $RegistryUsuario --password-stdin"
     if ($login.Codigo -ne 0) { Parar "login no GHCR falhou: $($login.Texto)" }
     Registrar "Login no GHCR (VPS)" "OK"
 }
