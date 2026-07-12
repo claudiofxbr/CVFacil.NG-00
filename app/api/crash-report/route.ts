@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
+import { checkRateLimit, clientIp } from '@/lib/rateLimit';
 
 export interface CrashReportPayload {
   timestamp: number;
@@ -27,6 +28,14 @@ export interface CrashReportPayload {
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    // Rota publica, sem autenticacao (relatorios de crash podem ocorrer antes
+    // do login). Limite generoso por IP: contra flood/log injection, sem
+    // travar reports legitimos em sessoes com varios erros em sequencia.
+    const okIp = await checkRateLimit(`crash-report:ip:${clientIp(request)}`, 30, 600);
+    if (!okIp) {
+      return NextResponse.json({ error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' }, { status: 429 });
+    }
+
     // Parse do corpo da requisição
     const payload: CrashReportPayload = await request.json();
 

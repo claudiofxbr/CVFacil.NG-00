@@ -14,6 +14,7 @@ Registro vivo de achados de auditoria, correções aplicadas e pendências. Atua
 | 4 vulnerabilidades *high* em dependências (Next.js middleware bypass, nodemailer SSRF, ws DoS, protobufjs DoS) | 2026-07-12 | `nodemailer` removido (dependência direta, confirmadamente código morto — nunca referenciado). Next.js atualizado de 16.2.5 (vulnerável) para 16.2.10 (corrigido), o que também atualizou `ws`/`protobufjs` transitivos. | `npm audit`: 8 vulnerabilidades (4 high) → 2 (0 high, só moderate). Build de produção + login/registro/sessão testados após a atualização |
 | Sem branch protection em `main` no GitHub | 2026-07-12 | Protecão leve: bloqueia force-push e deleção da branch. **Não** exige PR/review — o fluxo atual é sempre push direto, e exigir review travaria isso por completo (GitHub não permite autoaprovar a própria PR) | Confirmado via `gh api .../branches/main/protection`: `allow_force_pushes: false`, `allow_deletions: false` |
 | Container roda como root | 2026-07-12 | `USER node` no Dockerfile (imagem `node:20-slim` já inclui esse usuário, uid 1000), com `COPY --chown=node:node` nos arquivos copiados | Testado com build real: `docker exec ... id` confirma `uid=1000(node)`; registro/login/sessão funcionando normalmente como não-root (inclui o engine binário do Prisma, que precisa de permissão de execução) |
+| `/api/crash-report` público sem rate limit | 2026-07-12 | Rate limit por IP (30 requisições / 10 min, mesmo padrão de `lib/rateLimit.ts` já usado em login/register) | Testado com Redis real: 30 requisições seguidas → `200`, próximas 5 → `429`, exatamente no limite configurado |
 
 ## Pendente
 
@@ -23,7 +24,6 @@ Registro vivo de achados de auditoria, correções aplicadas e pendências. Atua
 | 2 vulnerabilidades *moderate* residuais (PostCSS XSS via `</style>` não escapado) | Baixa (aceito) | `npm audit fix --force` propõe **rebaixar o Next.js para a versão 9** para corrigir — inaceitável, quebraria o app inteiro. Risco residual aceito conscientemente. | Reavaliar quando o Next.js atualizar sua dependência de PostCSS internamente |
 | Deploy atual sem TLS (HTTP puro, porta 3002) | Alta | Não iniciado | Depende de decisão sobre proxy reverso (Caddy/nginx). **Bloqueia também** o flag `Secure` do cookie de sessão (`COOKIE_SECURE=false` até isso ser resolvido — ver `.env.example`) |
 | `ADMIN_SEED_EMAIL` permanente em produção | Média | Não iniciado | Remover do ambiente após confirmar admin já criado |
-| `/api/crash-report` público sem rate limit | Média | Não iniciado | — |
 | Sem backup automatizado do Neon (script encontrado no repo é de outro projeto/MySQL) | Alta | Não iniciado | Confirmar janela de PITR no console Neon primeiro |
 
 ## Histórico de auditorias
