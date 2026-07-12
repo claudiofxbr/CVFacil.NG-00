@@ -1,6 +1,5 @@
 import { ResumeData } from "../types";
 import { generateUUID } from "./resumeService";
-import { getToken } from "../lib/apiClient";
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Configurar o worker do PDF.js
@@ -63,7 +62,7 @@ export const importResumeFromPdf = async (
     response = await fetch('/api/import-resume', {
       method: 'POST',
       body: formData,
-      headers: { Authorization: `Bearer ${getToken()}` },
+      credentials: 'same-origin',
       signal: controller.signal,
     });
   } catch (err: any) {

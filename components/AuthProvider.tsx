@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { api, getToken, setToken, removeToken, ApiError } from '../lib/apiClient';
+import { api, ApiError } from '../lib/apiClient';
 import { authLogger } from '../lib/auth-logger';
 
 export interface AuthUser {
@@ -23,7 +23,7 @@ interface AuthContextType {
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string, avatar?: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
@@ -34,7 +34,7 @@ const AuthContext = createContext<AuthContextType>({
   error: null,
   login: async () => {},
   register: async () => {},
-  logout: () => {},
+  logout: async () => {},
   refreshUser: async () => {},
 });
 
@@ -43,6 +43,14 @@ export const useAuth = () => useContext(AuthContext);
 // Constantes de validação
 const VALIDATION_TIMEOUT = 5000; // 5 segundos
 const MAX_VALIDATION_ATTEMPTS = 3;
+
+// Limpa o cookie httpOnly de sessao no servidor. Best-effort: se a chamada
+// falhar (rede etc.), a UI ainda desloga localmente (setUser(null)); o pior
+// caso e o cookie sobreviver ate expirar sozinho (30 dias) sem sessao valida
+// no cliente, o que nao concede acesso a nada por si so.
+const clearSession = () => {
+  api.post('/api/auth/logout', {}).catch(() => {});
+};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -61,17 +69,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
    * - Logging estruturado
    */
   const refreshUser = async () => {
-    const token = getToken();
-
-    if (!token) {
-      authLogger.log('token_check_not_found');
-      setLoading(false);
-      setUser(null);
-      return;
-    }
-
-    authLogger.log('token_check_found');
-
+    // A sessao agora vive num cookie httpOnly, invisivel para JS -- nao ha
+    // mais como checar "existe token?" no cliente antes de perguntar ao
+    // servidor. Sempre chama /api/auth/me; o navegador envia o cookie
+    // automaticamente, e um 401 (tratado abaixo) significa "nao logado".
     try {
       authLogger.startTimer('refresh_user');
       authLogger.log('refresh_user_start');
@@ -110,7 +111,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (isDefinitiveAuthFailure) {
         authLogger.log('validation_blocked', { error: errorMessage });
         console.warn('[AuthProvider] Sessão inválida, efetuando logout:', errorMessage);
-        removeToken();
+        clearSession();
         setUser(null);
         setError(null);
         setValidationAttempts(0);
@@ -127,7 +128,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (newAttempts >= MAX_VALIDATION_ATTEMPTS) {
         authLogger.log('validation_blocked', { error: errorMessage });
         console.error('[AuthProvider] Validation failed 3 times, blocking');
-        removeToken();
+        clearSession();
         setUser(null);
         setError('Validação de autenticação falhou. Faça login novamente.');
       } else {
@@ -150,12 +151,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(true);
       authLogger.log('login_start', { userEmail: email });
 
-      const { token, user: u } = await api.post('/api/auth/login', { email, password });
+      const { user: u } = await api.post('/api/auth/login', { email, password });
 
       authLogger.log('login_success', { userEmail: u.email });
       console.log('[AuthProvider] Login successful:', u.email);
 
-      setToken(token);
       setUser(u);
       setError(null);
       setValidationAttempts(0);
@@ -179,12 +179,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const body: Record<string, string> = { name, email, password };
       if (avatar) body.avatar = avatar;
 
-      const { token, user: u } = await api.post('/api/auth/register', body);
+      const { user: u } = await api.post('/api/auth/register', body);
 
       authLogger.log('login_success', { userEmail: u.email });
       console.log('[AuthProvider] Registration successful:', u.email);
 
-      setToken(token);
       setUser(u);
       setError(null);
       setValidationAttempts(0);
@@ -201,10 +200,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
     authLogger.log('logout_requested', { userEmail: user?.email });
     console.log('[AuthProvider] Logout requested');
-    removeToken();
+    try {
+      await api.post('/api/auth/logout', {});
+    } catch {
+      // best-effort -- desloga localmente mesmo se a chamada falhar
+    }
     setUser(null);
     setError(null);
   };

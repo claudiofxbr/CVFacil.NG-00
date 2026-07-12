@@ -1,8 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { getToken } from '../lib/apiClient';
-
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 type PlanKey = 'basico' | 'padrao' | 'premium';
@@ -84,10 +82,8 @@ const Pricing: React.FC = () => {
     try {
       const res = await fetch('/api/checkout', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken()}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({ plan }),
       });
 

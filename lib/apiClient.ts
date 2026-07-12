@@ -1,5 +1,3 @@
-const TOKEN_KEY = 'auth-token';
-
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -9,38 +7,16 @@ export class ApiError extends Error {
   }
 }
 
-export const getToken = () =>
-  typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
-
-export const setToken = (token: string) => {
-  if (typeof window === 'undefined') return;
-
-  // Salvar em localStorage
-  localStorage.setItem(TOKEN_KEY, token);
-
-  // Salvar em cookie (para middleware acessar server-side)
-  document.cookie = `${TOKEN_KEY}=${token}; path=/; max-age=604800; SameSite=Strict`;
-};
-
-export const removeToken = () => {
-  if (typeof window === 'undefined') return;
-
-  // Remover de localStorage
-  localStorage.removeItem(TOKEN_KEY);
-
-  // Remover cookie
-  document.cookie = `${TOKEN_KEY}=; path=/; max-age=0; SameSite=Strict`;
-};
-
 async function apiFetch(path: string, init: RequestInit = {}) {
-  const token = getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(init.headers as Record<string, string>),
   };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(path, { ...init, headers });
+  // Sessao vai via cookie httpOnly (enviado automaticamente pelo navegador
+  // em requisicoes same-origin) -- nao ha mais token acessivel via JS para
+  // montar um header Authorization.
+  const res = await fetch(path, { ...init, headers, credentials: 'same-origin' });
   const data = await res.json();
   if (!res.ok) throw new ApiError(data.error ?? `Erro ${res.status}`, res.status);
   return data;
@@ -57,10 +33,7 @@ export const api = {
 // Baixa um arquivo de uma rota autenticada (ex.: exportação CSV) como download
 // do navegador. Diferente de `api.*`, não faz parse de JSON na resposta.
 export async function downloadFile(path: string, filename: string): Promise<void> {
-  const token = getToken();
-  const res = await fetch(path, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
+  const res = await fetch(path, { credentials: 'same-origin' });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new ApiError(data.error ?? `Erro ${res.status}`, res.status);

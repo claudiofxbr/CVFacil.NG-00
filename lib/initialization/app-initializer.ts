@@ -275,6 +275,12 @@ export class AppInitializer {
 
       logger.info('[AppInitializer] Performing secure logout...');
 
+      // 7.0 Limpar o cookie httpOnly de sessao no servidor -- a sessao vive
+      // nesse cookie desde a migracao de localStorage para cookie httpOnly;
+      // os passos 7.1+ abaixo (localStorage/sessionStorage/document.cookie)
+      // nao alcancam um cookie httpOnly, por isso essa chamada e necessaria.
+      fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+
       // 7.1 Deletar token
       localStorage.removeItem('auth-token');
       sessionStorage.removeItem('auth-token');

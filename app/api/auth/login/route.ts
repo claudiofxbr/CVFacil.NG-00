@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { verifyPassword, signToken, toAuthUser } from '@/lib/auth';
+import { verifyPassword, signToken, toAuthUser, AUTH_COOKIE_NAME, authCookieOptions } from '@/lib/auth';
 import { checkRateLimit, clientIp } from '@/lib/rateLimit';
 
 const prisma = new PrismaClient();
@@ -57,7 +57,9 @@ export async function POST(req: Request) {
 
     const token = signToken({ sub: updatedUser.id, email: updatedUser.email, role: updatedUser.role });
 
-    return NextResponse.json({ token, user: toAuthUser(updatedUser) });
+    const response = NextResponse.json({ user: toAuthUser(updatedUser) });
+    response.cookies.set(AUTH_COOKIE_NAME, token, authCookieOptions());
+    return response;
   } catch (err) {
     console.error('[login]', err);
     return NextResponse.json({ error: 'Erro interno.' }, { status: 500 });

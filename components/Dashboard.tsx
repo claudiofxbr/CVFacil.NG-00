@@ -3,7 +3,7 @@ import { templates } from '../services/resumeService';
 import { ResumeData, User } from '../types';
 import ResumePreview from './ResumePreview';
 import { exportToHtml, exportToDocx } from '../services/exportService';
-import { api, getToken } from '../lib/apiClient';
+import { api } from '../lib/apiClient';
 import { useAuth } from './AuthProvider';
 
 interface AppNotification {
@@ -251,7 +251,6 @@ const Dashboard: React.FC<{
       const formData = new FormData();
       formData.append('file', file);
 
-      const token = getToken();
       // Sem isso, a chamada aguarda indefinidamente se o Gemini estiver lento/
       // sobrecarregado — a barra ficava travada em 95% sem nenhum retorno ao usuário.
       const controller = new AbortController();
@@ -262,9 +261,7 @@ const Dashboard: React.FC<{
         importResponse = await fetch('/api/import-resume', {
           method: 'POST',
           body: formData,
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
+          credentials: 'same-origin',
           signal: controller.signal,
         });
       } catch (fetchErr: any) {

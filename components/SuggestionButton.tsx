@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { getToken } from '../lib/apiClient';
 
 interface SuggestionButtonProps {
   field: 'summary' | 'role' | 'company' | 'experience_description' | 'degree' | 'skill';
@@ -39,13 +38,10 @@ export const SuggestionButton: React.FC<SuggestionButtonProps> = ({
     setSuggestions([]);
 
     try {
-      const token = getToken();
       const response = await fetch('/api/suggestions', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({
           field,
           currentText,
