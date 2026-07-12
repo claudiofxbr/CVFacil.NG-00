@@ -31,7 +31,9 @@ param(
     [string]$VpsChave  = "$HOME\.ssh\cvfacil_deploy_key",
     [string]$DiretorioRemoto = "/opt/cvfacil-ng",
     [string]$NomeContainer   = "cvfacil-ng",
-    [int]$Porta = 3000,
+    # 3000 e usado pelo proprio painel do EasyPanel nesta VPS (confirmado via
+    # "ss -tlnp") -- nao usar. 3002 esta livre e e o padrao aqui.
+    [int]$Porta = 3002,
 
     [string]$RegistryUsuario,
     [string]$RegistryToken = $env:GHCR_TOKEN,
@@ -172,11 +174,32 @@ if ($pull.Codigo -ne 0) {
 Registrar "Imagem baixada na VPS" "OK" "$Imagem"
 
 # ── 6. Rodar migrations (Prisma) contra o Neon, a partir da propria imagem ──
-$migrar = Ssh-Vps "docker run --rm --env-file $DiretorioRemoto/.env $Imagem npx prisma@5.21.0 migrate deploy"
-if ($migrar.Codigo -ne 0) { Parar "migrations falharam: $($migrar.Texto)" }
+# Retry com backoff: bancos serverless (Neon) podem estar suspensos e levar
+# alguns segundos para "acordar" na primeira conexao, causando um P1001
+# transitorio que desaparece na tentativa seguinte.
+$migrar = $null
+$tentativasMigracao = 3
+for ($i = 1; $i -le $tentativasMigracao; $i++) {
+    $migrar = Ssh-Vps "docker run --rm --env-file $DiretorioRemoto/.env $Imagem npx prisma@5.21.0 migrate deploy"
+    if ($migrar.Codigo -eq 0) { break }
+    if ($i -lt $tentativasMigracao) {
+        Registrar "Migrations (tentativa $i/$tentativasMigracao)" "AVISO" "falhou, tentando de novo em 10s (possivel cold-start do banco)"
+        Start-Sleep -Seconds 10
+    }
+}
+if ($migrar.Codigo -ne 0) { Parar "migrations falharam apos $tentativasMigracao tentativas: $($migrar.Texto)" }
 Registrar "Migrations aplicadas no Neon" "OK"
 
 # ── 7. Substituir o container (parar/remover o antigo, subir o novo) ───────
+# Confere se a porta ja esta em uso por outra coisa (ex.: o proprio EasyPanel
+# ocupa a 3000 nesta VPS) ANTES de tentar subir, e falha com mensagem clara
+# em vez do erro generico do Docker ("port is already allocated").
+$portaEmUso = Ssh-Vps "ss -tln | grep -q ':$Porta ' && echo OCUPADA || echo LIVRE"
+if ($portaEmUso.Texto.Trim() -eq "OCUPADA") {
+    $ocupante = Ssh-Vps "docker ps --format '{{.Names}}: {{.Ports}}' | grep ':$Porta->' "
+    Parar "porta $Porta ja esta em uso na VPS por outro processo/container ($($ocupante.Texto.Trim())). Use -Porta para escolher outra."
+}
+
 Ssh-Vps "docker rm -f $NomeContainer" | Out-Null   # ignora erro se nao existir ainda
 $run = Ssh-Vps "docker run -d --name $NomeContainer --restart unless-stopped -p ${Porta}:3000 --env-file $DiretorioRemoto/.env $Imagem"
 if ($run.Codigo -ne 0) { Parar "falha ao iniciar o container: $($run.Texto)" }
