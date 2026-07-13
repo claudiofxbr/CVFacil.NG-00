@@ -6,10 +6,22 @@
     aguarda o build da imagem, e roda um container Docker "cru" na VPS
     Hostinger (docker run direto, sem Swarm/EasyPanel gerenciando nada).
 
-    Pressuposto explicito: sem EasyPanel/Traefik, nao ha HTTPS automatico.
-    O app fica acessivel em http://<VpsHost>:<Porta> (e http://cvfacil.ng:<Porta>
-    depois que o DNS apontar para a VPS). TLS ficaria por conta de um passo
-    futuro separado (ex.: Caddy/nginx+certbot) — fora do escopo pedido aqui.
+    HTTPS real ja existe em producao: um container Caddy separado (fora
+    deste script — ver /opt/caddy-cvfacil na VPS) termina TLS via Let's
+    Encrypt (desafio DNS-01, plugin Hostinger) e faz proxy reverso para
+    http://localhost:$Porta. Este script continua publicando o app em HTTP
+    puro nessa porta (uso interno/health-check); a URL publica oficial e
+    $AppUrl, servida pelo Caddy.
+
+    O container do app roda na rede Docker "$Network" (nao na rede padrao),
+    porque precisa alcancar o container Redis (nome "$RedisContainer") por
+    nome — sem essa rede, o rate limiting de login/registro/crash-report
+    fica silenciosamente inativo (o codigo falha aberto quando o Redis
+    esta inalcancavel). O Redis e o proprio container Caddy NAO sao geridos
+    por este script (sao dependencias de infraestrutura de ciclo de vida
+    separado, ja provisionadas manualmente na VPS) — o script so verifica
+    se o Redis esta acessivel antes de subir o app, e falha com uma
+    mensagem clara se nao estiver, em vez de tentar recria-lo.
 
     Exemplo:
         .\scripts\deploy-ssh-puro.ps1 -Mensagem "fix: X" -RegistryUsuario claudiofxbr
@@ -34,6 +46,17 @@ param(
     # 3000 e usado pelo proprio painel do EasyPanel nesta VPS (confirmado via
     # "ss -tlnp") -- nao usar. 3002 esta livre e e o padrao aqui.
     [int]$Porta = 3002,
+
+    # URL publica oficial (servida via HTTPS pelo Caddy, fora deste script —
+    # ver cabecalho acima). Vira NEXT_PUBLIC_APP_URL no .env de producao.
+    [string]$AppUrl = "https://xavierbr-vps.tech:8443",
+
+    # Rede Docker dedicada do app + Redis (isolada da rede padrao e das redes
+    # de outros apps na mesma VPS). Criada automaticamente se nao existir.
+    [string]$Network = "cvfacil-net",
+    # Container Redis (ja provisionado manualmente — ver cabecalho acima).
+    # Usado so para o teste de alcancabilidade antes do deploy.
+    [string]$RedisContainer = "cvfacil-redis",
 
     [string]$RegistryUsuario,
     [string]$RegistryToken = $env:GHCR_TOKEN,
@@ -138,11 +161,22 @@ if ($SemDeploy) {
 if (-not (Test-Path $EnvLocal)) { Parar "'$EnvLocal' nao encontrado — necessario como origem das variaveis de ambiente." }
 if (-not (Test-Path $VpsChave)) { Parar "chave SSH '$VpsChave' nao encontrada." }
 
+# Variaveis que precisam de um valor diferente em producao do que no
+# .env.local (dev): sao filtradas daqui e reaplicadas explicitamente abaixo.
+# Sem isso, cada redeploy reintroduziria silenciosamente configuracao de
+# desenvolvimento em producao (ex.: cookie de sessao sem Secure, ou Redis
+# apontando para "localhost", que nao existe de dentro do container).
+$variaveisSobrescritas = '^(NEXT_PUBLIC_APP_URL|COOKIE_SECURE|REDIS_HOST|REDIS_PORT)='
 $linhasEnv = Get-Content $EnvLocal | Where-Object {
-    $_ -notmatch '^\s*#' -and $_ -match '=' -and $_ -notmatch '^NEXT_PUBLIC_APP_URL='
+    $_ -notmatch '^\s*#' -and $_ -match '=' -and $_ -notmatch $variaveisSobrescritas
 }
 $envFinal = @($linhasEnv)
-$envFinal += "NEXT_PUBLIC_APP_URL=http://$VpsHost`:$Porta"
+$envFinal += "NEXT_PUBLIC_APP_URL=$AppUrl"
+# HTTPS real ja existe (Caddy, ver cabecalho) -- cookie de sessao exige Secure.
+$envFinal += "COOKIE_SECURE=true"
+# Nome do container Redis na rede Docker "$Network" (resolvido por nome, nao IP).
+$envFinal += "REDIS_HOST=$RedisContainer"
+$envFinal += "REDIS_PORT=6379"
 $envFinal += "NODE_ENV=production"
 $envFinal += "PORT=3000"
 $envFinal += "HOSTNAME=0.0.0.0"
@@ -197,7 +231,21 @@ for ($i = 1; $i -le $tentativasMigracao; $i++) {
 if ($migrar.Codigo -ne 0) { Parar "migrations falharam apos $tentativasMigracao tentativas: $($migrar.Texto)" }
 Registrar "Migrations aplicadas no Neon" "OK"
 
-# ── 7. Substituir o container (parar/remover o antigo, subir o novo) ───────
+# ── 7. Garantir a rede Docker e checar a dependencia do Redis ──────────────
+# Idempotente: "docker network create" falha com codigo != 0 se a rede ja
+# existir, mas isso nao e um erro real aqui -- so segue em frente.
+Ssh-Vps "docker network create $Network" | Out-Null
+$redeOk = Ssh-Vps "docker network inspect $Network --format '{{.Name}}'"
+if ($redeOk.Codigo -ne 0) { Parar "nao foi possivel criar/confirmar a rede Docker '$Network': $($redeOk.Texto)" }
+Registrar "Rede Docker '$Network'" "OK"
+
+$redisStatus = Ssh-Vps "docker inspect -f '{{.State.Status}}' $RedisContainer"
+if ($redisStatus.Codigo -ne 0 -or $redisStatus.Texto.Trim() -ne "running") {
+    Parar "container Redis '$RedisContainer' nao esta rodando na VPS (status: $($redisStatus.Texto.Trim())). Sem ele, o rate limiting de login/registro/crash-report fica silenciosamente inativo -- suba o Redis manualmente antes de reexecutar o deploy (ver SECURITY.md)."
+}
+Registrar "Dependencia Redis ('$RedisContainer')" "OK" "running"
+
+# ── 8. Substituir o container (parar/remover o antigo, subir o novo) ───────
 # IMPORTANTE: remover o container antigo ANTES de checar a porta. Em todo
 # redeploy, o proprio "$NomeContainer" da rodada anterior ja ocupa a porta —
 # isso e esperado e nao e um conflito real. So depois de remove-lo faz
@@ -211,11 +259,11 @@ if ($portaEmUso.Texto.Trim() -eq "OCUPADA") {
     Parar "porta $Porta ja esta em uso na VPS por outro processo/container ($($ocupante.Texto.Trim())). Use -Porta para escolher outra."
 }
 
-$run = Ssh-Vps "docker run -d --name $NomeContainer --restart unless-stopped -p ${Porta}:3000 --env-file $DiretorioRemoto/.env $Imagem"
+$run = Ssh-Vps "docker run -d --name $NomeContainer --restart unless-stopped --network $Network -p ${Porta}:3000 --env-file $DiretorioRemoto/.env $Imagem"
 if ($run.Codigo -ne 0) { Parar "falha ao iniciar o container: $($run.Texto)" }
-Registrar "Container iniciado" "OK" "porta $Porta -> 3000"
+Registrar "Container iniciado" "OK" "rede $Network, porta $Porta -> 3000"
 
-# ── 8. Verificar saude (dentro da VPS e externamente) ───────────────────────
+# ── 9. Verificar saude (dentro da VPS e externamente via HTTPS) ────────────
 Start-Sleep -Seconds 5
 $statusContainer = Ssh-Vps "docker inspect -f '{{.State.Status}}' $NomeContainer"
 if ($statusContainer.Texto.Trim() -ne "running") {
@@ -224,15 +272,17 @@ if ($statusContainer.Texto.Trim() -ne "running") {
 $httpInterno = Ssh-Vps "curl -s -o /dev/null -w '%{http_code}' http://localhost:$Porta/"
 Registrar "Health check interno (dentro da VPS)" "OK" "HTTP $($httpInterno.Texto.Trim())"
 
+# Externo: bate na URL publica real (HTTPS, via Caddy), nao na porta interna --
+# assim o teste cobre o caminho que o usuario final de fato usa.
 try {
-    $externo = Invoke-WebRequest -Uri "http://${VpsHost}:${Porta}/" -Method Head -TimeoutSec 10 -ErrorAction Stop
-    Registrar "Health check externo (deste computador)" "OK" "HTTP $($externo.StatusCode)"
+    $externo = Invoke-WebRequest -Uri $AppUrl -Method Head -TimeoutSec 10 -ErrorAction Stop
+    Registrar "Health check externo (HTTPS, deste computador)" "OK" "HTTP $($externo.StatusCode)"
 }
 catch {
-    Registrar "Health check externo (deste computador)" "AVISO" "nao respondeu de fora — verifique firewall/porta $Porta liberada na VPS"
+    Registrar "Health check externo (HTTPS, deste computador)" "AVISO" "$AppUrl nao respondeu de fora — verifique o container Caddy/certificado na VPS"
 }
 
 Write-Host "`n===== Resumo =====" -ForegroundColor DarkGray
 $log | Format-Table Etapa, Status, Detalhe -AutoSize | Out-String | Write-Host
-Write-Host "App disponivel em: http://${VpsHost}:${Porta}" -ForegroundColor Green
+Write-Host "App disponivel em: $AppUrl" -ForegroundColor Green
 exit 0
