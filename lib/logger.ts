@@ -90,8 +90,10 @@ class Logger {
       this.logs.shift();
     }
 
-    // Output para console em desenvolvimento
-    if (this.isDevelopment) {
+    // Output para console: sempre no servidor (é o que vira `docker logs` em
+    // produção — sem isso, erros do servidor ficam invisíveis pra sempre),
+    // só em desenvolvimento no navegador (evita ruído no console do usuário final)
+    if (typeof window === 'undefined' || this.isDevelopment) {
       this.outputToConsole(entry);
     }
 

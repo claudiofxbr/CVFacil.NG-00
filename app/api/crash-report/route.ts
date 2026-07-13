@@ -53,7 +53,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       cause: payload.cause,
       message: payload.message,
       url: payload.url,
-      timestamp: new Date(payload.timestamp).toISOString(),
+      timestamp: Number.isFinite(payload.timestamp)
+        ? new Date(payload.timestamp).toISOString()
+        : new Date().toISOString(),
     });
 
     // Tentar armazenar no banco de dados
