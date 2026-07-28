@@ -497,7 +497,11 @@ const Dashboard: React.FC<{
         {/* Avatar Container — Sempre renderiza com fallback visual */}
         <div className="w-24 h-24 md:w-32 md:h-32 rounded-2xl overflow-hidden border-2 border-forest-border shadow-2xl flex-shrink-0 bg-forest-surface flex items-center justify-center">
           {userInfo.avatar ? (
-            <img src={userInfo.avatar} alt="Profile" className="w-full h-full object-cover" />
+            userInfo.avatar.includes('dicebear') ? (
+              <object data={userInfo.avatar} type="image/svg+xml" className="w-full h-full" />
+            ) : (
+              <img src={userInfo.avatar} alt="Profile" className="w-full h-full object-cover" />
+            )
           ) : (
             <span className="material-symbols-outlined text-4xl md:text-5xl text-stone-500">person</span>
           )}

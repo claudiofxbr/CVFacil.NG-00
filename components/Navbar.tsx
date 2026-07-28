@@ -40,7 +40,11 @@ const Navbar: React.FC<NavbarProps> = ({ currentView, userInfo, onMenuClick }) =
                 {/* Miniatura Avatar — Sempre renderiza com fallback visual */}
                 <div className="w-10 h-10 rounded-full border-2 border-forest-border overflow-hidden bg-forest-surface flex items-center justify-center flex-shrink-0">
                     {userInfo.avatar ? (
-                      <img src={userInfo.avatar} alt="User" className="w-full h-full object-cover" />
+                      userInfo.avatar.includes('dicebear') ? (
+                        <object data={userInfo.avatar} type="image/svg+xml" className="w-full h-full" />
+                      ) : (
+                        <img src={userInfo.avatar} alt="User" className="w-full h-full object-cover" />
+                      )
                     ) : (
                       <span className="material-symbols-outlined text-sm text-stone-500">person</span>
                     )}
