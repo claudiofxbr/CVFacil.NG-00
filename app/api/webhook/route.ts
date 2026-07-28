@@ -6,7 +6,7 @@ import { generateUUID } from '@/services/resumeService';
 const getStripe = () => {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) throw new Error('STRIPE_SECRET_KEY não configurada.');
-  return new Stripe(key, { apiVersion: '2026-04-22.dahlia' });
+  return new Stripe(key, { apiVersion: '2026-06-24.dahlia' });
 };
 
 const PLAN_NAMES: Record<string, string> = {
@@ -40,18 +40,33 @@ async function handleSessionPaid(session: Stripe.Checkout.Session) {
 
   const { method, paymentIntentId } = await resolvePaymentMethod(session);
 
-  await sql`
-    UPDATE users SET plan = ${PLAN_NAMES[plan] ?? plan}, credits = ${Number(credits)}, status = 'Ativo'
-    WHERE id = ${userId}
-  `;
-
-  await sql`
+  // INSERT...ON CONFLICT primeiro: "xmax = 0" indica que esta linha acabou de
+  // ser inserida agora (primeira vez que vemos este stripeSessionId como
+  // pago); se já existia, foi uma reentrega do mesmo evento pelo Stripe
+  // (retry normal em timeout/erro transitório do nosso lado). Só creditamos
+  // o usuário na primeira vez -- sem essa guarda, somar créditos (em vez de
+  // sobrescrever, ver correção abaixo) duplicaria o crédito a cada reentrega.
+  const paymentRows = await sql`
     INSERT INTO payments (id, "userId", plan, amount, currency, method, status, "stripeSessionId", "stripePaymentIntentId")
     VALUES (${generateUUID()}, ${userId}, ${plan}, ${session.amount_total ?? 0}, ${session.currency ?? 'brl'}, ${method}, 'paid', ${session.id}, ${paymentIntentId})
     ON CONFLICT ("stripeSessionId") DO UPDATE SET status = 'paid', method = EXCLUDED.method
+    RETURNING (xmax = 0) AS "isNewPayment"
   `;
 
-  console.log(`[Webhook] Plano ${plan} ativado para usuário ${userId} (método: ${method ?? 'desconhecido'})`);
+  if (!paymentRows[0]?.isNewPayment) {
+    console.log(`[Webhook] Sessão ${session.id} já processada anteriormente, ignorando reentrega (idempotência)`);
+    return;
+  }
+
+  // Soma ao saldo existente, nunca sobrescreve: um usuário com créditos
+  // restantes que compra outro plano deve ficar com a soma dos dois, não
+  // perder o que já tinha (mesmo padrão já usado em app/api/users/[id]/credits/route.ts).
+  await sql`
+    UPDATE users SET plan = ${PLAN_NAMES[plan] ?? plan}, credits = credits + ${Number(credits)}, status = 'Ativo'
+    WHERE id = ${userId}
+  `;
+
+  console.log(`[Webhook] Plano ${plan} ativado para usuário ${userId} (método: ${method ?? 'desconhecido'}), +${credits} créditos`);
 }
 
 // Pix (ou outro método assíncrono) que não confirmou — registra como falho,
