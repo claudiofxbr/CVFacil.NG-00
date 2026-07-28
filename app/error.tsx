@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { logger } from '@/lib/logger';
 
 export default function Error({
   error,
@@ -10,7 +11,11 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error(error);
+    logger.error('[app/error.tsx] Erro de segment boundary', {
+      message: error.message,
+      stack: error.stack,
+      digest: error.digest,
+    });
   }, [error]);
 
   return (

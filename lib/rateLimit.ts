@@ -20,8 +20,11 @@ function getRedis(): Redis {
 
 /**
  * Limitador de taxa por janela fixa, contado no Redis (compartilhado entre
- * todas as instâncias do cluster PM2). Se o Redis estiver indisponível,
- * falha aberto (permite a requisição) em vez de derrubar login/registro.
+ * todas as réplicas do container em produção — hoje um único container Docker
+ * gerenciado via scripts/deploy-ssh-puro.ps1, não o cluster PM2 mencionado
+ * numa versão anterior deste comentário, de quando o deploy era bare-metal).
+ * Se o Redis estiver indisponível, falha aberto (permite a requisição) em vez
+ * de derrubar login/registro.
  */
 export async function checkRateLimit(key: string, limit: number, windowSeconds: number): Promise<boolean> {
   try {

@@ -19,6 +19,18 @@ const sanitize = (str?: string) => (str || '').replace(/[<>&"]/g, c =>
   ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c] ?? c)
 );
 
+// avatarUrl é aceito como string livre na criação/edição do currículo (sem
+// validação de formato). Diferente dos outros campos, ele é interpolado como
+// atributo src de <img>, não como texto — sanitize() escapa HTML, mas não
+// impede um valor tipo "javascript:..." ou algo fora do domínio esperado de
+// ser interpolado ali. Restringe a apenas os esquemas realmente usados pelo
+// app (http(s) e data:image, do upload local) antes de interpolar.
+const sanitizeAvatarUrl = (url?: string) => {
+  if (!url) return '';
+  if (/^(https?:|data:image\/)/i.test(url)) return sanitize(url);
+  return '';
+};
+
 // ─── EXPORTAR HTML ──────────────────────────────────────────────────────────────
 
 export const exportToHtml = (resume: ResumeData): void => {
@@ -94,7 +106,7 @@ export const exportToHtml = (resume: ResumeData): void => {
 <div class="container">
   <!-- HEADER -->
   <header style="display:flex;gap:32px;align-items:flex-start;margin-bottom:40px;flex-wrap:wrap">
-    <img src="${resume.avatarUrl}" alt="${sanitize(resume.fullName)}"
+    <img src="${sanitizeAvatarUrl(resume.avatarUrl)}" alt="${sanitize(resume.fullName)}"
       style="width:120px;height:160px;object-fit:cover;object-position:top;border-radius:12px;border:3px solid ${primaryColor}40" />
     <div style="flex:1;min-width:200px">
       <h1 style="font-size:36px;font-weight:800;text-transform:uppercase;letter-spacing:0.02em;margin-bottom:6px">

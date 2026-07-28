@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { sql } from '@/lib/db';
 import { generateUUID } from '@/services/resumeService';
+import { logger } from '@/lib/logger';
 
 const getStripe = () => {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -54,7 +55,7 @@ async function handleSessionPaid(session: Stripe.Checkout.Session) {
   `;
 
   if (!paymentRows[0]?.isNewPayment) {
-    console.log(`[Webhook] Sessão ${session.id} já processada anteriormente, ignorando reentrega (idempotência)`);
+    logger.info(`[Webhook] Sessão ${session.id} já processada anteriormente, ignorando reentrega (idempotência)`);
     return;
   }
 
@@ -66,7 +67,7 @@ async function handleSessionPaid(session: Stripe.Checkout.Session) {
     WHERE id = ${userId}
   `;
 
-  console.log(`[Webhook] Plano ${plan} ativado para usuário ${userId} (método: ${method ?? 'desconhecido'}), +${credits} créditos`);
+  logger.info(`[Webhook] Plano ${plan} ativado para usuário ${userId} (método: ${method ?? 'desconhecido'}), +${credits} créditos`);
 }
 
 // Pix (ou outro método assíncrono) que não confirmou — registra como falho,
@@ -80,7 +81,7 @@ async function handleSessionAsyncFailed(session: Stripe.Checkout.Session) {
     VALUES (${generateUUID()}, ${userId}, ${plan ?? ''}, ${session.amount_total ?? 0}, ${session.currency ?? 'brl'}, 'failed', ${session.id})
     ON CONFLICT ("stripeSessionId") DO UPDATE SET status = 'failed'
   `;
-  console.log(`[Webhook] Pagamento assíncrono falhou para usuário ${userId}`);
+  logger.warn(`[Webhook] Pagamento assíncrono falhou para usuário ${userId}`);
 }
 
 export async function POST(req: NextRequest) {
@@ -92,7 +93,7 @@ export async function POST(req: NextRequest) {
   try {
     event = getStripe().webhooks.constructEvent(body, signature, webhookSecret);
   } catch (err: any) {
-    console.error('[Webhook] Signature verification failed:', err.message);
+    logger.error('[Webhook] Signature verification failed', { message: err.message });
     return NextResponse.json({ error: 'Invalid signature.' }, { status: 400 });
   }
 
@@ -112,7 +113,7 @@ export async function POST(req: NextRequest) {
       await handleSessionAsyncFailed(event.data.object as Stripe.Checkout.Session);
     }
   } catch (err: any) {
-    console.error('[Webhook] Error processing event:', err.message);
+    logger.error('[Webhook] Error processing event', { message: err.message });
   }
 
   return NextResponse.json({ received: true });

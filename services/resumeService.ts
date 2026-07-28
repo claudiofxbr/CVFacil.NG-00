@@ -5,17 +5,12 @@ import { ResumeData, TemplateOption } from '../types';
 export const DEFAULT_AVATAR_PLACEHOLDER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23cbd5e1'/%3E%3Ccircle cx='50' cy='38' r='18' fill='%2394a3b8'/%3E%3Cellipse cx='50' cy='88' rx='30' ry='24' fill='%2394a3b8'/%3E%3C/svg%3E";
 
-// Função auxiliar para gerar IDs únicos de forma segura (funciona em HTTP e HTTPS)
-export const generateUUID = () => {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    try {
-        return crypto.randomUUID();
-    } catch (e) {
-        // Fallback silencioso
-    }
-  }
-  return Date.now().toString(36) + Math.random().toString(36).substring(2);
-};
+// Gera IDs únicos via crypto.randomUUID (disponível em Node 20+ e em todo
+// navegador com suporte a HTTPS/localhost, ambiente mínimo já exigido pelo
+// app). Sem fallback: um dos usos é o sharedToken que protege o acesso
+// público a um currículo com PII, e um fallback baseado em Date.now()+
+// Math.random() não é criptograficamente seguro para esse caso.
+export const generateUUID = () => crypto.randomUUID();
 
 // Utilitário de Compressão de Imagem Centralizado
 // Evita o erro de QuotaExceededError do localStorage reduzindo o tamanho da imagem

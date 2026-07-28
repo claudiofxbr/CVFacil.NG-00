@@ -12,6 +12,7 @@
 import React, { ReactNode } from 'react';
 import { logger } from '@/lib/logger';
 import { appInitializer } from '@/lib/initialization/app-initializer';
+import { errorBudget } from '@/lib/initialization/error-budget';
 
 interface Props {
   children: ReactNode;
@@ -27,8 +28,6 @@ interface State {
  * Error Boundary Component
  */
 export class ErrorBoundary extends React.Component<Props, State> {
-  private readonly maxErrorsBeforeLockdown = 5;
-
   constructor(props: Props) {
     super(props);
     this.state = {
@@ -52,12 +51,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
       componentStack: errorInfo.componentStack,
     });
 
-    // Incrementar contador de erros
-    const newCount = this.state.errorCount + 1;
-    this.setState({ errorCount: newCount });
+    // Orçamento de erro compartilhado com o GlobalExceptionHandler.
+    const lockdown = errorBudget.register();
+    this.setState({ errorCount: errorBudget.count });
 
-    // Se muitos erros ocorreram, fazer logout por segurança
-    if (newCount >= this.maxErrorsBeforeLockdown) {
+    // Se muitos erros ocorreram (de qualquer origem), fazer logout por segurança
+    if (lockdown) {
       this.handleCriticalError();
     }
   }
@@ -82,6 +81,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
    */
   private handleRetry = async (): Promise<void> => {
     logger.info('[ErrorBoundary] Retrying after error');
+    errorBudget.reset();
     this.setState({ hasError: false, error: undefined, errorCount: 0 });
   };
 
@@ -212,7 +212,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
             )}
 
             {/* Error Count Warning */}
-            {this.state.errorCount >= this.maxErrorsBeforeLockdown - 1 && (
+            {this.state.errorCount >= errorBudget.max - 1 && (
               <div
                 style={{
                   backgroundColor: '#fef2f2',

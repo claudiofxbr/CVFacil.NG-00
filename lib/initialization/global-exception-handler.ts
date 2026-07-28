@@ -9,6 +9,7 @@
 
 import { logger } from '@/lib/logger';
 import { appInitializer } from './app-initializer';
+import { errorBudget } from './error-budget';
 
 export interface CrashReport {
   timestamp: number;
@@ -171,15 +172,27 @@ export class GlobalExceptionHandler {
     // 3. Marcar que houve crash
     this.markCrashDetected(crashReport);
 
-    // 4. Limpar dados sensíveis
-    await this.cleanupBeforeCrash();
-
-    // 5. Enviar relatório para servidor (assíncrono, não bloqueia)
+    // 4. Enviar relatório para servidor (assíncrono, não bloqueia)
     this.reportCrashToServer(crashReport).catch((error) => {
       logger.error('[GlobalExceptionHandler] Failed to report crash', error);
     });
 
-    // 6. Reiniciar app para login
+    // 5. Orçamento de erro compartilhado com o ErrorBoundary: um único erro
+    // não tratado (ex.: fetch().then() sem .catch()) não deve mais derrubar
+    // a sessão sozinho — só depois de acumular o mesmo limite tolerado pelo
+    // ErrorBoundary para erros de render.
+    const lockdown = errorBudget.register();
+    if (!lockdown) {
+      logger.warn(
+        `[GlobalExceptionHandler] Erro registrado (${errorBudget.count}/${errorBudget.max}), sessão mantida`
+      );
+      return;
+    }
+
+    // 6. Limpar dados sensíveis
+    await this.cleanupBeforeCrash();
+
+    // 7. Reiniciar app para login
     this.restartAppSecurely();
   }
 
