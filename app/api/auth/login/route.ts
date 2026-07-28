@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { verifyPassword, signToken, toAuthUser, AUTH_COOKIE_NAME, authCookieOptions } from '@/lib/auth';
 import { checkRateLimit, clientIp } from '@/lib/rateLimit';
-
-const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
   try {
@@ -63,7 +61,5 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error('[login]', err);
     return NextResponse.json({ error: 'Erro interno.' }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
   }
 }

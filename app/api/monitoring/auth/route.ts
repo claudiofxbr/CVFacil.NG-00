@@ -1,8 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import { getTokenFromRequest, verifyToken } from '@/lib/auth';
-
-const prisma = new PrismaClient();
 
 function adminAuth(req: Request) {
   const token = getTokenFromRequest(req);
@@ -44,8 +41,6 @@ export async function POST(request: NextRequest) {
       { error: 'Failed to log auth event' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
 

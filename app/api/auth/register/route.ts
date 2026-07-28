@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { hashPassword, signToken, toAuthUser, AUTH_COOKIE_NAME, authCookieOptions } from '@/lib/auth';
 import { checkRateLimit, clientIp } from '@/lib/rateLimit';
-
-const prisma = new PrismaClient();
 
 // Créditos concedidos automaticamente a toda conta nova, para permitir criar
 // pelo menos um currículo antes de decidir comprar um plano. Sem isso, o
@@ -54,7 +52,5 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error('[register]', err);
     return NextResponse.json({ error: 'Erro interno.' }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
   }
 }

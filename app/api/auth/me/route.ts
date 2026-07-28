@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { getTokenFromRequest, verifyToken, toAuthUser } from '@/lib/auth';
-
-const prisma = new PrismaClient();
 
 export async function GET(req: Request) {
   try {
@@ -20,7 +18,5 @@ export async function GET(req: Request) {
   } catch (err) {
     console.error('[me]', err);
     return NextResponse.json({ error: 'Token inválido.' }, { status: 401 });
-  } finally {
-    await prisma.$disconnect();
   }
 }
