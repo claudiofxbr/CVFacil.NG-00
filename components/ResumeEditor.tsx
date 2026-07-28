@@ -80,6 +80,13 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ resumeId, onBack, initialTe
       } else {
         await api.post('/api/resumes', body);
       }
+      // Confirma o salvamento visivelmente antes de sair da tela. Sem essa
+      // pausa, um pop-up de PDF bloqueado pelo navegador (comum, já que o
+      // window.open() abaixo roda depois de um await e perde a permissão de
+      // gesto do usuário) passava direto para onBack() sem o usuário nunca
+      // ver que o salvamento em si tinha funcionado.
+      setNotification({ message: 'Currículo salvo com sucesso!', type: 'success' });
+      await new Promise(resolve => setTimeout(resolve, 900));
       await generatePdfAction();
       onBack();
     } catch (err: any) {
@@ -386,30 +393,34 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ resumeId, onBack, initialTe
           </div>
         </div>
 
+        {/* Avisos de erro/salvamento: fora da área que fica oculta na aba
+            "Preview" no mobile (activeTab === 'preview'), para nunca ficarem
+            invisíveis justamente quando o usuário acabou de clicar em Salvar
+            estando nessa aba. */}
+        {error && (
+          <div className="mx-6 md:mx-8 mt-4 p-4 bg-red-500/10 border border-red-500/50 rounded-xl text-red-400 text-sm flex items-center gap-3">
+            <span className="material-symbols-outlined">error</span>
+            {error}
+          </div>
+        )}
+
+        {notification && (
+          <div className={`mx-6 md:mx-8 mt-4 p-4 rounded-xl text-sm flex items-center gap-3 animate-in fade-in slide-in-from-top-2 ${
+            notification.type === 'success' ? 'bg-primary/10 border border-primary/50 text-primary' :
+            notification.type === 'error' ? 'bg-red-500/10 border border-red-500/50 text-red-400' :
+            'bg-forest-deep border border-forest-border text-stone-400'
+          }`}>
+            <span className="material-symbols-outlined">
+              {notification.type === 'success' ? 'check_circle' : notification.type === 'error' ? 'error' : 'sync'}
+            </span>
+            {notification.message}
+          </div>
+        )}
+
         {/* Main Content Area */}
         <div className="flex-1 flex overflow-hidden">
           {/* Left Side: Form */}
           <div className={`flex-1 overflow-y-auto p-6 md:p-8 space-y-12 custom-scrollbar ${activeTab === 'preview' ? 'hidden md:block' : 'block'}`}>
-            {error && (
-              <div className="p-4 bg-red-500/10 border border-red-500/50 rounded-xl text-red-400 text-sm flex items-center gap-3">
-                <span className="material-symbols-outlined">error</span>
-                {error}
-              </div>
-            )}
-
-            {notification && (
-              <div className={`p-4 rounded-xl text-sm flex items-center gap-3 animate-in fade-in slide-in-from-top-2 ${
-                notification.type === 'success' ? 'bg-primary/10 border border-primary/50 text-primary' : 
-                notification.type === 'error' ? 'bg-red-500/10 border border-red-500/50 text-red-400' : 
-                'bg-forest-deep border border-forest-border text-stone-400'
-              }`}>
-                <span className="material-symbols-outlined">
-                  {notification.type === 'success' ? 'check_circle' : notification.type === 'error' ? 'error' : 'sync'}
-                </span>
-                {notification.message}
-              </div>
-            )}
-
             {/* Configurações de Design */}
             <section className="bg-forest-deep/30 p-6 rounded-3xl border border-forest-border/50 space-y-6">
               <div className="flex items-center gap-3 mb-4">

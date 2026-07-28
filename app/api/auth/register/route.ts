@@ -5,6 +5,12 @@ import { checkRateLimit, clientIp } from '@/lib/rateLimit';
 
 const prisma = new PrismaClient();
 
+// Créditos concedidos automaticamente a toda conta nova, para permitir criar
+// pelo menos um currículo antes de decidir comprar um plano. Sem isso, o
+// primeiro clique em "Salvar" de qualquer usuário novo falha com 403 (ver
+// checagem de crédito em app/api/resumes/route.ts).
+const FREE_SIGNUP_CREDITS = 3;
+
 export async function POST(req: Request) {
   try {
     const { name, email, password, avatar } = await req.json();
@@ -34,6 +40,7 @@ export async function POST(req: Request) {
         name,
         email,
         password: hashedPassword,
+        credits: FREE_SIGNUP_CREDITS,
         ...(avatar ? { avatar } : {}),
         ...(isSeedAdmin ? { role: 'Administrador' } : {}),
       }
