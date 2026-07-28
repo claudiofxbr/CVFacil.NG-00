@@ -47,7 +47,9 @@ export function InitializationScript(): null {
       logger.warn('[InitializationScript] Session invalidated event received');
 
       if (typeof window !== 'undefined') {
-        window.location.href = '/login';
+        // '/' é a raiz da SPA (tela de login quando não há sessão válida);
+        // /login não existe como rota no Next.js App Router deste projeto.
+        window.location.href = '/';
       }
     };
 
@@ -58,7 +60,9 @@ export function InitializationScript(): null {
       logger.warn('[InitializationScript] External logout event received');
 
       if (typeof window !== 'undefined') {
-        window.location.href = '/login';
+        // '/' é a raiz da SPA (tela de login quando não há sessão válida);
+        // /login não existe como rota no Next.js App Router deste projeto.
+        window.location.href = '/';
       }
     };
 

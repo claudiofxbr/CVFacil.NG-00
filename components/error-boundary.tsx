@@ -72,7 +72,10 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
     // Redirecionar para login
     if (typeof window !== 'undefined') {
-      window.location.href = '/login';
+      // '/' é a raiz da SPA: renderiza App.tsx, que mostra a tela de login
+      // sempre que não há sessão válida. Não existe rota /login no Next.js
+      // App Router deste projeto (era um destino inexistente, 404).
+      window.location.href = '/';
     }
   }
 
@@ -93,7 +96,10 @@ export class ErrorBoundary extends React.Component<Props, State> {
     await appInitializer.performSecureLogout();
 
     if (typeof window !== 'undefined') {
-      window.location.href = '/login';
+      // '/' é a raiz da SPA: renderiza App.tsx, que mostra a tela de login
+      // sempre que não há sessão válida. Não existe rota /login no Next.js
+      // App Router deste projeto (era um destino inexistente, 404).
+      window.location.href = '/';
     }
   };
 

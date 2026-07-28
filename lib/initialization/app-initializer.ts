@@ -460,9 +460,10 @@ export class AppInitializer {
       );
     }
 
-    // Redirecionar para login
+    // Redirecionar para a raiz da SPA (tela de login quando não há sessão
+    // válida); /login não existe como rota no Next.js App Router deste projeto.
     if (typeof window !== 'undefined') {
-      window.location.href = '/login';
+      window.location.href = '/';
     }
   }
 
