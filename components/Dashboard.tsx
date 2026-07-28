@@ -198,21 +198,44 @@ const Dashboard: React.FC<{
     try {
       await waitForImages(printRef.current);
       const printContent = printRef.current.innerHTML;
-      const win = window.open('', '_blank');
+
+      // Reaproveita o CSS já compilado/injetado na página atual (Tailwind
+      // + qualquer <style> do Next.js) em vez de recarregar o Tailwind via
+      // CDN com uma cópia manual do tema. A cópia manual não incluía as
+      // cores customizadas (ex.: stone-200/stone-400 redefinidas em
+      // tailwind.config.cjs) e ficava obsoleta a cada novo template/classe,
+      // fazendo o PDF divergir sutilmente da pré-visualização.
+      const styleTags = Array.from(
+        document.querySelectorAll<HTMLStyleElement | HTMLLinkElement>('style, link[rel="stylesheet"][href*="/_next/"]')
+      ).map(el => (el instanceof HTMLLinkElement ? `<link rel="stylesheet" href="${el.href}">` : el.outerHTML)).join('\n');
+
+      const win = window.open('', '_blank', 'width=900,height=1273');
       if (win) {
         win.document.write(`<html><head>
           <title>${printingResume?.fullName || 'Currículo'} - CVFacil.NG</title>
           <meta charset="UTF-8" />
-          <script src="https://cdn.tailwindcss.com"><\/script>
-          <script>tailwind.config={darkMode:'class',theme:{extend:{fontFamily:{sans:['Inter','sans-serif'],display:['Outfit','sans-serif']},colors:{primary:'#d97706',secondary:'#c2410c','forest-deep':'#020617','forest-base':'#0f172a','forest-surface':'#1e293b','forest-border':'#334155'}}}}<\/script>
           <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
           <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
-          <style>body{font-family:'Inter',sans-serif}@media print{body{margin:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.section-container{padding:2cm;min-height:100vh}section,.group,li,tr{break-inside:avoid}}::-webkit-scrollbar{display:none}</style>
+          ${styleTags}
+          <style>@page{size:A4;margin:0}body{margin:0;font-family:'Inter',sans-serif;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}@media print{section,.group,li,tr{break-inside:avoid}}::-webkit-scrollbar{display:none}</style>
           </head><body class="${printingResume?.themeMode === 'dark' ? 'bg-forest-deep text-stone-200' : 'bg-white text-stone-800'}">
-          <div class="section-container">${printContent}</div>
-          <script>window.onload=function(){setTimeout(function(){window.print();},800)}<\/script>
+          ${printContent}
           </body></html>`);
         win.document.close();
+
+        // Espera as imagens (recarregadas do zero nesta nova janela) e as
+        // fontes terminarem de carregar antes de imprimir — o timeout fixo
+        // anterior (800ms) podia disparar o print com ícones/fontes ainda
+        // não prontos, produzindo um PDF visualmente diferente da prévia.
+        win.onload = async () => {
+          const imgs = Array.from(win.document.images);
+          await Promise.all(imgs.map(img =>
+            img.complete ? Promise.resolve() : new Promise<void>(res => { img.onload = () => res(); img.onerror = () => res(); })
+          ));
+          try { await win.document.fonts?.ready; } catch { /* fonte indisponível, segue com o print */ }
+          win.print();
+        };
+
         setNotification({ message: "Selecione 'Salvar como PDF' na janela.", type: 'success' });
       } else {
         setNotification({ message: 'Pop-up bloqueado. Permita pop-ups para o PDF.', type: 'error' });
