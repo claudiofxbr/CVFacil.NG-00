@@ -1,15 +1,22 @@
-// CSP relativamente permissiva em script/style-src: o app ainda carrega o
-// Tailwind Play CDN (cdn.tailwindcss.com) em runtime, que injeta <style>
-// inline via JS -- isso exige 'unsafe-inline' em style-src e o proprio host
-// do CDN em script-src. Ver SECURITY.md: migrar para Tailwind compilado em
-// build-time removeria essa necessidade e permitiria uma CSP bem mais estrita.
+// Tailwind agora e compilado em build-time (tailwind.config.cjs +
+// postcss.config.cjs, ver M6 em SECURITY.md) -- o Play CDN (cdn.tailwindcss.com)
+// e o <script>/<style> inline que ele exigia foram removidos de app/layout.tsx,
+// entao o host do CDN saiu do script-src. 'unsafe-inline' em script-src
+// PRECISA continuar, porem, por um motivo diferente e nao relacionado ao
+// Tailwind: o proprio Next.js App Router injeta o payload de hidratacao RSC
+// via <script>self.__next_f.push(...)</script> inline em toda pagina -- sem
+// 'unsafe-inline' (ou uma CSP baseada em nonce, que exigiria gerar o nonce
+// por requisicao via proxy/middleware, mudanca maior e fora do escopo aqui),
+// a hidratacao e bloqueada pelo navegador e a pagina fica em branco (raiz do
+// achado M6 ia alem do CDN -- confirmado testando visualmente apos a
+// primeira tentativa de remove-lo).
 // 'unsafe-eval' so em dev: o React usa eval() para reconstruir stack traces
 // no modo de desenvolvimento (nunca em producao, conforme o proprio React
 // avisa no console) -- sem isso, `next dev` quebra com CSP.
 const scriptSrcEval = process.env.NODE_ENV === 'production' ? '' : " 'unsafe-eval'";
 const CSP = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${scriptSrcEval} https://cdn.tailwindcss.com`,
+  `script-src 'self' 'unsafe-inline'${scriptSrcEval}`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: blob:",

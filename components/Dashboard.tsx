@@ -14,10 +14,6 @@ interface AppNotification {
   createdAt: string;
 }
 
-declare global {
-  interface Window { html2canvas: any; jspdf: any; }
-}
-
 // Normaliza a resposta da API (já em camelCase) para ResumeData, com fallbacks defensivos
 function rowToResume(r: any): ResumeData {
   return {
