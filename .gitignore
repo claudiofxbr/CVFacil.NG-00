@@ -122,3 +122,11 @@ dist
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Material de referencia/entrega fora do codigo do app (auditorias em
+# markdown soltas na raiz, PDFs gerados, assets de marca) -- deliberadamente
+# fora do controle de versao, mantidos so localmente.
+/AUDITORIA_TECNICA_*.md
+/CVFacilNG_Aprovacao_Seguranca.pdf
+/Logotipo aplicativos/
+/documentação-CVFacil.NG/
