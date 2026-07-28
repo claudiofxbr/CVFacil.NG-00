@@ -494,11 +494,14 @@ const Dashboard: React.FC<{
 
       {/* Header */}
       <header className="flex flex-col md:flex-row gap-6 items-center md:items-center">
-        {userInfo.avatar && (
-          <div className="w-24 h-24 md:w-32 md:h-32 rounded-2xl overflow-hidden border-2 border-forest-border shadow-2xl flex-shrink-0">
+        {/* Avatar Container — Sempre renderiza com fallback visual */}
+        <div className="w-24 h-24 md:w-32 md:h-32 rounded-2xl overflow-hidden border-2 border-forest-border shadow-2xl flex-shrink-0 bg-forest-surface flex items-center justify-center">
+          {userInfo.avatar ? (
             <img src={userInfo.avatar} alt="Profile" className="w-full h-full object-cover" />
-          </div>
-        )}
+          ) : (
+            <span className="material-symbols-outlined text-4xl md:text-5xl text-stone-500">person</span>
+          )}
+        </div>
         <div className="flex-1 text-center md:text-left">
           <h1 className="text-4xl md:text-5xl font-display font-bold text-white mb-2">
             Olá, <span className="text-primary">{userInfo.name}!</span> 👋

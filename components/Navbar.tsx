@@ -37,12 +37,14 @@ const Navbar: React.FC<NavbarProps> = ({ currentView, userInfo, onMenuClick }) =
                     <p className="text-sm font-bold text-white">{userInfo.name}</p>
                     <p className="text-[10px] font-bold text-stone-500 uppercase tracking-widest">Membro CVFacil</p>
                 </div>
-                {/* Foto Ícone no Topo */}
-                {userInfo.avatar && (
-                  <div className="w-10 h-10 rounded-full border-2 border-forest-border overflow-hidden">
+                {/* Miniatura Avatar — Sempre renderiza com fallback visual */}
+                <div className="w-10 h-10 rounded-full border-2 border-forest-border overflow-hidden bg-forest-surface flex items-center justify-center flex-shrink-0">
+                    {userInfo.avatar ? (
                       <img src={userInfo.avatar} alt="User" className="w-full h-full object-cover" />
-                  </div>
-                )}
+                    ) : (
+                      <span className="material-symbols-outlined text-sm text-stone-500">person</span>
+                    )}
+                </div>
             </div>
         </div>
       </header>
