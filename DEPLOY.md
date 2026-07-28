@@ -1,45 +1,35 @@
 # CVFacil.NG — Guia de Deploy na Hostinger VPS
 
+> Este documento descrevia originalmente um deploy bare-metal via PM2 — método
+> abandonado (ver `SECURITY.md`, histórico de 12/07). O deploy real hoje é via
+> imagem Docker publicada no GHCR e recriada na VPS por `scripts/deploy-ssh-puro.ps1`
+> (`docker run` direto, sem Swarm/EasyPanel gerenciando nada). Este arquivo foi
+> atualizado para refletir isso.
+
 ## Pré-requisitos
 
 | Recurso | Mínimo recomendado |
 |---------|-------------------|
 | Hostinger | VPS KVM 2 ou Cloud Startup |
-| Node.js | v20+ |
+| Docker | instalado na VPS |
 | RAM | 1 GB |
 | Disco | 10 GB |
 
-> **Por quê VPS?** O app usa API Routes do Next.js (Stripe Checkout, Webhooks) que exigem execução de Node.js no servidor. O Shared Hosting não suporta isso.
+---
+
+## 1. Fluxo de deploy
+
+1. `git push` para `main` — dispara `.github/workflows/deploy.yml`, que builda a imagem Docker e publica em `ghcr.io/claudiofxbr/cvfacil.ng:latest`.
+2. Rodar localmente: `powershell -File scripts/deploy-ssh-puro.ps1` — aguarda o build do GitHub Actions, envia o `.env` para a VPS via SSH, garante a rede Docker `cvfacil-net`, roda `npx prisma@5.21.0 migrate deploy` num container efêmero, recria o container `cvfacil-ng` na rede, e faz health-check via HTTPS real.
+3. URL pública de produção: `https://xavierbr-vps.tech:8443`.
+
+Detalhes de configuração de firewall, TLS (Let's Encrypt via DNS-01), Redis e backups automatizados estão documentados em `SECURITY.md`, não aqui — aquele arquivo é o registro vivo do estado real da infraestrutura.
 
 ---
 
-## 1. Preparar o VPS (1ª vez)
+## 2. Variáveis de ambiente
 
-Acesse o VPS via SSH pelo painel da Hostinger e execute:
-
-```bash
-# Instalar Node.js 20
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-apt-get install -y nodejs
-
-# Instalar PM2 (gerenciador de processos)
-npm install -g pm2
-
-# Criar pasta do projeto
-mkdir -p /var/www/cvfacil.ng/logs
-```
-
----
-
-## 2. Configurar variáveis de ambiente no VPS
-
-Crie o arquivo `/var/www/cvfacil.ng/.env.local` com seus valores reais:
-
-```bash
-nano /var/www/cvfacil.ng/.env.local
-```
-
-Preencha com base no `.env.example`:
+Preencha com base no `.env.example` (o `scripts/deploy-ssh-puro.ps1` envia o `.env` local para a VPS automaticamente, não precisa editar nada manualmente lá):
 
 ```env
 GEMINI_API_KEY=sua_chave_gemini
@@ -53,122 +43,25 @@ ADMIN_SEED_EMAIL=seu-email-de-admin@dominio.com
 
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-NEXT_PUBLIC_APP_URL=https://cvfacil.ng
-```
+NEXT_PUBLIC_APP_URL=https://xavierbr-vps.tech:8443
 
-A VPS Hostinger fica sempre ativa — a conexão pooled do Neon (`DATABASE_URL`) funciona bem com o Prisma Client padrão nesse cenário, sem necessidade de driver serverless/edge.
-
----
-
-## 3. Configurar Nginx como Proxy Reverso
-
-```bash
-apt-get install -y nginx
-```
-
-Crie `/etc/nginx/sites-available/cvfacil`:
-
-```nginx
-server {
-    listen 80;
-    server_name cvfacil.ng www.cvfacil.ng;
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
-
-```bash
-ln -s /etc/nginx/sites-available/cvfacil /etc/nginx/sites-enabled/
-nginx -t && systemctl reload nginx
+CRON_SECRET=segredo_para_o_endpoint_de_expurgo_de_notificacoes
 ```
 
 ---
 
-## 4. HTTPS com Let's Encrypt
-
-```bash
-apt-get install -y certbot python3-certbot-nginx
-certbot --nginx -d cvfacil.ng -d www.cvfacil.ng
-```
-
----
-
-## 5. Fazer o deploy
-
-### Opção A — Script automático
-
-Edite `VPS_HOST` em `scripts/deploy-hostinger.sh` e execute localmente:
-
-```bash
-bash scripts/deploy-hostinger.sh
-```
-
-### Opção B — Manual
-
-No seu computador local:
-
-```bash
-npm run build
-cp -r public .next/standalone/public
-cp -r .next/static .next/standalone/.next/static
-```
-
-Faça upload da pasta `.next/standalone/` + `ecosystem.config.cjs` + a pasta `prisma/` (schema + migrations, necessária para o `prisma migrate deploy` abaixo) para `/var/www/cvfacil.ng/` via FTP (SFTP/Filezilla) ou `scp`.
-
-No VPS:
-
-```bash
-cd /var/www/cvfacil.ng
-
-# Aplica migrations pendentes no Neon antes de subir a nova versão
-npx prisma migrate deploy
-
-pm2 start ecosystem.config.cjs
-pm2 save
-pm2 startup   # Habilita reinício automático após reboot
-```
-
----
-
-## 6. Configurar Webhook do Stripe
+## 3. Configurar Webhook do Stripe
 
 No [Stripe Dashboard](https://dashboard.stripe.com/webhooks):
 
-1. **Add endpoint** → URL: `https://cvfacil.ng/api/webhook`
+1. **Add endpoint** → URL: `https://xavierbr-vps.tech:8443/api/webhook`
 2. Eventos: marque `checkout.session.completed`, `checkout.session.async_payment_succeeded` e `checkout.session.async_payment_failed`
    (os dois últimos são necessários para métodos assíncronos como Pix — sem eles, o usuário nunca é creditado quando paga via Pix)
 3. Copie o **Signing secret** → coloque em `STRIPE_WEBHOOK_SECRET`
 
 ---
 
-## 7. Verificação pós-deploy
-
-```bash
-# Ver status do app
-pm2 status
-
-# Ver logs em tempo real
-pm2 logs cvfacil-ng
-
-# Testar API de checkout
-curl -X POST https://cvfacil.ng/api/checkout \
-  -H "Content-Type: application/json" \
-  -d '{"plan":"padrao","userId":"teste","userEmail":"teste@teste.com"}'
-```
-
----
-
-## Expurgo agendado de notificações
+## 4. Expurgo agendado de notificações
 
 Notificações lidas com mais de 90 dias de usuários sem login há mais de 60 dias
 são removidas por um crontab na VPS chamando o endpoint protegido por segredo
@@ -181,7 +74,7 @@ crontab -e
 Adicione (roda a cada 60 dias, às 3h):
 
 ```
-0 3 */60 * * curl -s -X POST https://cvfacil.ng/api/admin/purge-notifications -H "x-cron-secret: SEU_CRON_SECRET_AQUI"
+0 3 */60 * * curl -s -X POST https://xavierbr-vps.tech:8443/api/admin/purge-notifications -H "x-cron-secret: SEU_CRON_SECRET_AQUI"
 ```
 
 Usuários que ainda usam o app não dependem disso — suas notificações lidas já são
@@ -189,32 +82,14 @@ limpas automaticamente (com retenção de 90 dias) a cada vez que abrem a lista 
 
 ---
 
-## Atualizar uma nova versão
+## 5. Verificação pós-deploy
 
 ```bash
-# Localmente
-bash scripts/deploy-hostinger.sh
+# Ver logs do container em tempo real
+ssh usuario@vps "docker logs -f cvfacil-ng"
 
-# Ou no VPS diretamente
-cd /var/www/cvfacil.ng
-# (substitua os arquivos manualmente)
-npx prisma migrate deploy
-pm2 reload cvfacil-ng
-```
-
----
-
-## Estrutura no VPS após o deploy
-
-```
-/var/www/cvfacil.ng/
-├── .next/standalone/     ← build da aplicação
-│   ├── server.js         ← ponto de entrada Next.js
-│   ├── public/           ← assets estáticos
-│   └── .next/static/
-├── ecosystem.config.cjs  ← configuração PM2
-├── .env.local            ← variáveis de ambiente (NÃO commitar)
-└── logs/
-    ├── out.log
-    └── error.log
+# Testar API de checkout
+curl -X POST https://xavierbr-vps.tech:8443/api/checkout \
+  -H "Content-Type: application/json" \
+  -d '{"plan":"padrao","userId":"teste","userEmail":"teste@teste.com"}'
 ```
