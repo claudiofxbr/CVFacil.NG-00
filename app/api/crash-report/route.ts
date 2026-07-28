@@ -9,6 +9,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { checkRateLimit, clientIp } from '@/lib/rateLimit';
+import { getTokenFromRequest, verifyToken } from '@/lib/auth';
+
+function adminAuth(req: Request) {
+  const token = getTokenFromRequest(req);
+  if (!token) return null;
+  try {
+    const payload = verifyToken(token);
+    return payload.role === 'Administrador' ? payload : null;
+  } catch {
+    return null;
+  }
+}
 
 export interface CrashReportPayload {
   timestamp: number;
@@ -105,15 +117,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 /**
  * GET /api/crash-report
  *
- * Retorna lista de crashes recentes (requer autenticação em produção)
+ * Retorna lista de crashes recentes (apenas administradores)
  */
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    // Nota: Em produção, adicionar autenticação aqui
-    // Exemplo: const token = request.headers.get('authorization');
-    // if (!token) {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
+    if (!adminAuth(request)) {
+      return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 });
+    }
+
+    const okIp = await checkRateLimit(`crash-report:get:${clientIp(request)}`, 30, 600);
+    if (!okIp) {
+      return NextResponse.json({ error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' }, { status: 429 });
+    }
 
     logger.info('[CrashReport API] Fetching crash reports');
 

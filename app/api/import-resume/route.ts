@@ -26,6 +26,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Nenhum arquivo fornecido.' }, { status: 400 });
     }
 
+    // Validação: tipo e tamanho, antes de gastar memória/rede/cota da Gemini
+    // com um arquivo que nunca poderia ser processado.
+    const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
+    if (file.type !== 'application/pdf') {
+      return NextResponse.json({ error: 'Apenas arquivos PDF são aceitos.' }, { status: 400 });
+    }
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return NextResponse.json({ error: 'Arquivo muito grande. O limite é 50MB.' }, { status: 400 });
+    }
+
     // 3. Converter para Base64
     const arrayBuffer = await file.arrayBuffer();
     const base64Data = Buffer.from(arrayBuffer).toString('base64');
