@@ -22,7 +22,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ resumeId, onBack, initialTe
     templateId: initialTemplateId || initialResumeData.templateId,
     fullName: userInfo.name,
     email: userInfo.email,
-    avatarUrl: userInfo.avatar
+    avatarUrl: userInfo.avatar || ''
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(!!resumeId);
@@ -300,7 +300,7 @@ const ResumeEditor: React.FC<ResumeEditorProps> = ({ resumeId, onBack, initialTe
 
     setIsLoading(true);
     try {
-      const importedData = await importResumeFromPdf(file, user?.id || 'visitante', userInfo.avatar);
+      const importedData = await importResumeFromPdf(file, user?.id || 'visitante', userInfo.avatar || '');
       setResumeData(prev => ({
         ...importedData,
         id: prev.id, // Manter o ID atual se estiver editando

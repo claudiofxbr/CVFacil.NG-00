@@ -59,7 +59,7 @@ export interface TemplateOption {
 
 export interface User {
   name: string;
-  avatar: string;
+  avatar: string | null; // Avatar pode ser null (será substituído por fallback dicebear em App.tsx)
   email: string;
   role?: 'Administrador' | 'Cliente';
 }

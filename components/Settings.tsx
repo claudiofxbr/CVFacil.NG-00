@@ -180,7 +180,7 @@ const Settings: React.FC<SettingsProps> = ({ userInfo, onProfileUpdate }) => {
     setIsSavingProfile(true);
     try {
       await api.put(`/api/users/${user.id}`, { name, email, avatar });
-      onProfileUpdate(name, email, avatar);
+      onProfileUpdate(name, email, avatar || undefined);
       await refreshUser();
       setNotification({ message: 'Perfil atualizado com sucesso!', type: 'success' });
     } catch {
