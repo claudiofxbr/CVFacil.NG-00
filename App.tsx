@@ -25,10 +25,14 @@ const AppContent: React.FC = () => {
 
   useEffect(() => {
     if (user) {
+      // Dicebear fallback: usar name, email ou 'CV' se ambos forem null
+      const fallbackSeed = (user.name?.trim() || user.email || 'CV');
+      const fallbackAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(fallbackSeed)}`;
+
       setUserInfo({
         name:   user.name,
         email:  user.email,
-        avatar: user.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.name)}`,
+        avatar: user.avatar || fallbackAvatar,
         role:   user.role as any,
       });
       if (view === ViewState.AUTH) setView(ViewState.DASHBOARD);
