@@ -292,6 +292,11 @@ const Dashboard: React.FC<{
         hobbies: resumeData.hobbies,
         templateId: 'original',
         themeMode: 'dark',
+        // Sem isso, todo currículo importado por PDF nascia sem foto (o
+        // payload nunca incluía avatarUrl, então a rota gravava null) --
+        // mesma foto da conta já usada por padrão ao criar um currículo
+        // manualmente (ver ResumeEditor.tsx).
+        avatarUrl: userInfo.avatar,
       };
 
       const { resume: saved } = await api.post('/api/resumes', savePayload);
