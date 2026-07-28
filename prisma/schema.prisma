@@ -77,6 +77,7 @@ model Resume {
   createdAt   DateTime @default(now())
   lastUpdated DateTime @default(now()) @updatedAt
 
+  @@index([userId, isPinned, lastUpdated])
   @@map("resumes")
 }
 
