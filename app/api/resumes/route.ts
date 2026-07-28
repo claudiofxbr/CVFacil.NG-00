@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getTokenFromRequest, verifyToken } from '@/lib/auth';
 import { generateUUID } from '@/services/resumeService';
+import { resumeCreateSchema, formatZodError } from '@/lib/validation/resumeSchema';
 
 function auth(req: Request) {
   const token = getTokenFromRequest(req);
@@ -24,13 +25,16 @@ export async function POST(req: Request) {
   if (!payload) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
 
   const isAdmin = payload.role === 'Administrador';
-  const body = await req.json();
+  const parsed = resumeCreateSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return NextResponse.json({ error: formatZodError(parsed.error) }, { status: 400 });
+  }
   const {
     templateId = 'original', themeMode = 'light', fullName = '', role = '',
     email = '', phone = '', linkedin = '', portfolio = '', summary = '',
     experiences = [], education = [], skills = [], languages = [], hobbies = [],
     avatarUrl = null, isPinned = false, isImported = false,
-  } = body;
+  } = parsed.data;
 
   if (isAdmin) {
     const rows = await sql`

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql, sqlTransaction } from '@/lib/db';
 import { getTokenFromRequest, verifyToken } from '@/lib/auth';
+import { resumeUpdateSchema, formatZodError } from '@/lib/validation/resumeSchema';
 
 function auth(req: Request) {
   const token = getTokenFromRequest(req);
@@ -23,12 +24,15 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
   if (!payload) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
 
   const { id } = await context.params;
-  const body = await req.json();
+  const parsed = resumeUpdateSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return NextResponse.json({ error: formatZodError(parsed.error) }, { status: 400 });
+  }
   const {
     templateId, themeMode, fullName, role, email, phone, linkedin, portfolio,
     summary, experiences, education, skills, languages, hobbies, avatarUrl, isPinned,
     isAutoSave = false,
-  } = body;
+  } = parsed.data;
 
   const isAdmin = payload.role === 'Administrador';
 
