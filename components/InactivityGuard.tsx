@@ -50,13 +50,18 @@ export const InactivityGuard: React.FC<InactivityGuardProps> = ({ onTimeout }) =
       }
     };
 
-    ACTIVITY_EVENTS.forEach(evt => window.addEventListener(evt, handleActivity, { passive: true }));
+    // capture: true -- 'scroll' nao faz bubble ate window quando disparado num
+    // container interno com overflow (usado em Dashboard/Editor/Sidebar); sem
+    // capture, rolar dentro desses containers nao conta como atividade.
+    ACTIVITY_EVENTS.forEach(evt => window.addEventListener(evt, handleActivity, { passive: true, capture: true }));
 
     const tick = setInterval(() => {
       if (warningActiveRef.current) return;
 
       const idleMs = Date.now() - lastActivityRef.current;
-      const warnAfterMs = INACTIVITY_LIMIT_MS - COUNTDOWN_SECONDS * 1000;
+      // Clamp: se COUNTDOWN_SECONDS for configurado >= INACTIVITY_LIMIT_MS,
+      // o aviso deve comecar imediatamente (0), nunca com prazo negativo.
+      const warnAfterMs = Math.max(0, INACTIVITY_LIMIT_MS - COUNTDOWN_SECONDS * 1000);
 
       if (idleMs >= warnAfterMs) {
         warningActiveRef.current = true;
@@ -76,7 +81,7 @@ export const InactivityGuard: React.FC<InactivityGuardProps> = ({ onTimeout }) =
     }, 1000);
 
     return () => {
-      ACTIVITY_EVENTS.forEach(evt => window.removeEventListener(evt, handleActivity));
+      ACTIVITY_EVENTS.forEach(evt => window.removeEventListener(evt, handleActivity, { capture: true }));
       clearInterval(tick);
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     };
