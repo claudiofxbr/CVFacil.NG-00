@@ -68,10 +68,26 @@ export function InitializationScript(): null {
 
     window.addEventListener('externalLogout', handleExternalLogout);
 
+    // PASSO 6: Forcar reinicializacao ao restaurar a pagina do bfcache.
+    // Sem isso, ao voltar para uma aba deixada aberta (ou "reabrir aba
+    // recente"), o navegador restaura o DOM/estado JS congelados sem
+    // remontar o React -- o AuthProvider nunca revalida a sessao e a
+    // ultima tela (ex.: Dashboard) fica visivel em vez do app reiniciar
+    // pelo fluxo normal (login/validacao).
+    const handlePageShow = (event: PageTransitionEvent): void => {
+      if (event.persisted) {
+        logger.warn('[InitializationScript] Pagina restaurada do bfcache, recarregando');
+        window.location.reload();
+      }
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+
     // Cleanup
     return () => {
       window.removeEventListener('sessionInvalidated', handleSessionInvalidated);
       window.removeEventListener('externalLogout', handleExternalLogout);
+      window.removeEventListener('pageshow', handlePageShow);
     };
   }, []);
 
