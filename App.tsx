@@ -8,6 +8,7 @@ import Settings from './components/Settings';
 import AdminPanel from './components/AdminPanel';
 import { ViewState, User } from './types';
 import { AuthProvider, useAuth } from './components/AuthProvider';
+import { InactivityGuard } from './components/InactivityGuard';
 
 const DEFAULT_AVATAR = 'https://api.dicebear.com/7.x/initials/svg?seed=CV';
 
@@ -89,39 +90,45 @@ const AppContent: React.FC = () => {
   // Resume Editor takes over the full screen, no sidebar
   if (view === ViewState.EDITOR) {
     return (
-      <ResumeEditor 
-        initialTemplateId={selectedTemplateId} 
-        resumeId={editingResumeId}
-        onBack={() => setView(ViewState.DASHBOARD)} 
-        userInfo={userInfo}
-      />
+      <>
+        <InactivityGuard onTimeout={handleLogout} />
+        <ResumeEditor
+          initialTemplateId={selectedTemplateId}
+          resumeId={editingResumeId}
+          onBack={() => setView(ViewState.DASHBOARD)}
+          userInfo={userInfo}
+        />
+      </>
     );
   }
 
   return (
-    <Layout 
-      currentView={view} 
-      setView={setView} 
-      onLogout={handleLogout} 
-      userInfo={userInfo}
-    >
-       {view === ViewState.DASHBOARD && (
-         <Dashboard
-            onCreate={handleCreateResume}
-            onEdit={handleEditResume}
-            userInfo={userInfo}
-            onNavigateAdmin={() => setView(ViewState.ADMIN)}
-         />
-       )}
-       {view === ViewState.PRICING && <Pricing />}
-       {view === ViewState.SETTINGS && (
-         <Settings
-            userInfo={userInfo}
-            onProfileUpdate={handleProfileUpdate}
-         />
-       )}
-       {view === ViewState.ADMIN && <AdminPanel />}
-    </Layout>
+    <>
+      <InactivityGuard onTimeout={handleLogout} />
+      <Layout
+        currentView={view}
+        setView={setView}
+        onLogout={handleLogout}
+        userInfo={userInfo}
+      >
+         {view === ViewState.DASHBOARD && (
+           <Dashboard
+              onCreate={handleCreateResume}
+              onEdit={handleEditResume}
+              userInfo={userInfo}
+              onNavigateAdmin={() => setView(ViewState.ADMIN)}
+           />
+         )}
+         {view === ViewState.PRICING && <Pricing />}
+         {view === ViewState.SETTINGS && (
+           <Settings
+              userInfo={userInfo}
+              onProfileUpdate={handleProfileUpdate}
+           />
+         )}
+         {view === ViewState.ADMIN && <AdminPanel />}
+      </Layout>
+    </>
   );
 };
 
